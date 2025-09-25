@@ -28,8 +28,8 @@ export function createAnimator(store: Store): Animator {
         }
       }
       const percent = Math.max(0, Math.min(handle.current, 100));
-      handle.token.style.setProperty('--progress', ${percent}%);
-      handle.fill.style.height = ${percent}%;
+      handle.token.style.setProperty('--progress', percent + '%');
+      handle.fill.style.height = percent + '%';
     });
     raf = window.requestAnimationFrame(step);
   }
@@ -55,6 +55,8 @@ export function createAnimator(store: Store): Animator {
   return {
     register(id, token, fill) {
       registry.set(id, { token, fill, current: 0, target: 0 });
+      token.style.setProperty('--progress', '0%');
+      fill.style.height = '0%';
       ensureRunning();
     },
     unregister(id) {

@@ -245,7 +245,7 @@ function createControl() {
   const joinNotice = document.createElement('div');
   joinNotice.className = 'join-warning';
   joinNotice.style.display = 'none';
-  joinNotice.textContent = '레이스 준비 중입니다. 다음 라운드를 기다려 주세요.';
+  joinNotice.textContent = 'Preparing next race. Please join the upcoming lobby.';
 
   const boostButton = document.createElement('button');
   boostButton.type = 'button';
@@ -281,6 +281,23 @@ function updateControl(control: ReturnType<typeof createControl>, state: ClientS
       actions.sendBoost(selected.id);
     }
   };
+
+  const snapshot = state.snapshot;
+  let showJoinNotice = false;
+  if (snapshot) {
+    const remainingMs = snapshot.phaseEndsAt - Date.now();
+    if (snapshot.phase === 'LOBBY' && remainingMs <= 15_000) {
+      control.joinNotice.textContent = 'Less than 15 seconds remain - join the next race!';
+      showJoinNotice = true;
+    } else if (snapshot.phase !== 'LOBBY') {
+      control.joinNotice.textContent =
+        snapshot.phase === 'CLICK_WINDOW'
+          ? 'Click window in progress. New boosts join next round.'
+          : 'Race underway. Hang tight for the next lobby.';
+      showJoinNotice = true;
+    }
+  }
+  control.joinNotice.style.display = showJoinNotice ? 'block' : 'none';
 
   const list = control.resultList;
   list.innerHTML = '';
@@ -342,7 +359,14 @@ function updateCountdown(countdown: ReturnType<typeof createCountdown>, state: C
   }
 }
 
-function formatCountdown(ms: number): string {\r\n  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));\r\n  const minutes = Math.floor(totalSeconds / 60);\r\n  const seconds = totalSeconds % 60;\r\n  return ${minutes}:;\r\n}\r\n\r\nfunction formatMillis(ms?: number): string {
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes + ':' + String(seconds).padStart(2, '0');
+}
+
+function formatMillis(ms?: number): string {
   if (ms == null) return '--';
   return `${(ms / 1000).toFixed(2)}s`;
 }
