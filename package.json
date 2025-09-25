@@ -1,0 +1,36 @@
+{
+    "name":  "racing",
+    "version":  "1.0.0",
+    "main":  "server/dist/index.js",
+    "scripts":  {
+                    "start":  "pnpm --filter @gecko/server run start",
+                    "lint":  "pnpm --filter @gecko/server run lint",
+                    "test:server":  "pnpm --filter @gecko/server run test",
+                    "build:client":  "pnpm --filter client run build",
+                    "build:server":  "pnpm --filter @gecko/server run build",
+                    "format":  "prettier --write \"server/src/**/*.ts\" \"server/tests/**/*.ts\"",
+                    "test:client":  "pnpm --filter client run test",
+                    "build":  "pnpm --filter @gecko/server run build \u0026\u0026 pnpm --filter client run build",
+                    "setup":  "node scripts/ensure-pnpm.mjs",
+                    "dev":  "concurrently \"pnpm --filter @gecko/server run dev\" \"pnpm --filter client run dev\"",
+                    "test":  "pnpm run lint \u0026\u0026 pnpm run test:server \u0026\u0026 pnpm run test:client",
+                    "dev:server":  "pnpm --filter @gecko/server run dev",
+                    "dev:client":  "pnpm --filter client run dev"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "description":  "Gecko Sprint real-time lizard racing prototype",
+    "dependencies":  {
+
+                     },
+    "devDependencies":  {
+                            "eslint-config-prettier":  "^10.1.8",
+                            "prettier":  "^3.6.2",
+                            "globals":  "^16.4.0",
+                            "concurrently":  "^9.2.1"
+                        },
+    "packageManager":  "pnpm@9.12.3"
+}
