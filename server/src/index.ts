@@ -61,6 +61,7 @@ io.on('connection', (socket) => {
     selectionId: player.selectionId,
     wallet: player.wallet,
     referralCode: player.referralCode,
+    referralCount: player.referralCount ?? 0,
     dailyTicketClaimed: player.dailyTicketClaimed
   });
 

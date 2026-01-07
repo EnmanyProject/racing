@@ -15,6 +15,21 @@ if (!container) {
 
 mountUI(store, api, animator, container);
 
+// Check for referral code in URL
+const urlParams = new URLSearchParams(window.location.search);
+const refCode = urlParams.get('ref');
+if (refCode) {
+  // Wait for self info to be available, then apply referral
+  const unsubscribe = store.subscribe((state) => {
+    if (state.self && !state.self.referralCode?.includes(refCode)) {
+      api.applyReferral(refCode);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      unsubscribe();
+    }
+  });
+}
+
 // optional nickname prompt
 window.addEventListener('keydown', (event) => {
   if (event.key === 'n' && (event.metaKey || event.ctrlKey)) {

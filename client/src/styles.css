@@ -766,3 +766,185 @@ body {
 .font-bold {
   font-weight: 700;
 }
+
+/* ========================
+   INVITE MODAL
+   ======================== */
+.invite-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.invite-modal-overlay.show {
+  display: flex;
+}
+
+.invite-modal {
+  width: 100%;
+  max-width: 380px;
+  background: linear-gradient(180deg, #87CEEB 0%, #ADD8E6 100%);
+  border-radius: 20px;
+  padding: 24px 20px;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.invite-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--white);
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.invite-description {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a365d;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.invite-gecko-img {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 20px;
+  object-fit: contain;
+}
+
+.invite-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 14px 20px;
+  border-radius: 24px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  width: 100%;
+}
+
+.invite-action:hover {
+  background: rgba(255, 255, 255, 0.95);
+  transform: scale(1.02);
+}
+
+.invite-action:active {
+  transform: scale(0.98);
+}
+
+.invite-action-icon {
+  width: 32px;
+  height: 32px;
+  background: #4a90d9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+}
+
+.invite-action-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+}
+
+.invite-bonus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.invite-bonus-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.invite-friend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-friend-item {
+  background: rgba(255, 255, 255, 0.7);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+}
+
+.invite-friend-item.filled {
+  color: #1a365d;
+  font-weight: 600;
+}
+
+.invite-code-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.invite-code-label {
+  font-size: 12px;
+  color: #1a365d;
+  margin-bottom: 4px;
+}
+
+.invite-code {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a365d;
+  letter-spacing: 2px;
+}
+
+/* Invite Button in Header */
+.invite-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #4a90d9, #3b7dd8);
+  border: none;
+  border-radius: 12px;
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.invite-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(74, 144, 217, 0.4);
+}
+
+.invite-btn-icon {
+  font-size: 14px;
+}

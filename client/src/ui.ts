@@ -12,6 +12,7 @@ interface UIElements {
     connectionStatus: HTMLElement;
     coinsDisplay: HTMLElement;
     ticketsDisplay: HTMLElement;
+    inviteBtn: HTMLElement;
   };
   phaseBar: HTMLElement;
   mainContent: HTMLElement;
@@ -19,6 +20,11 @@ interface UIElements {
   countdownOverlay: {
     container: HTMLElement;
     digit: HTMLElement;
+  };
+  inviteModal: {
+    overlay: HTMLElement;
+    codeDisplay: HTMLElement;
+    friendList: HTMLElement;
   };
 }
 
@@ -44,6 +50,7 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
     updatePhaseBar(elements, state);
     updateToast(elements, state);
     updateCountdown(elements, state);
+    updateInviteModal(elements, state, store);
 
     const newPhase = state.snapshot?.phase ?? null;
 
@@ -76,7 +83,11 @@ function createBaseLayout(container: HTMLElement): UIElements {
   ticketsItem.className = 'wallet-item';
   ticketsItem.innerHTML = `<img src="${TICKET_ICON}" alt="Tickets"><span class="tickets-value">0</span>`;
 
-  walletBar.append(coinsItem, ticketsItem);
+  const inviteBtn = document.createElement('button');
+  inviteBtn.className = 'invite-btn';
+  inviteBtn.innerHTML = '<span class="invite-btn-icon">👥</span><span>초대</span>';
+
+  walletBar.append(coinsItem, ticketsItem, inviteBtn);
 
   const connectionStatus = document.createElement('div');
   connectionStatus.className = 'connection-status';
@@ -104,14 +115,48 @@ function createBaseLayout(container: HTMLElement): UIElements {
   countdownDigit.className = 'countdown-digit';
   countdownOverlay.append(countdownDigit);
 
+  // Invite Modal
+  const inviteModalOverlay = document.createElement('div');
+  inviteModalOverlay.className = 'invite-modal-overlay';
+  inviteModalOverlay.innerHTML = `
+    <div class="invite-modal">
+      <button class="invite-close-btn">X</button>
+      <p class="invite-description">
+        친구를 초대하면 친구가 처음 게임에 참여할 때<br>
+        <strong>10 코인</strong>을 받을 수 있습니다!
+      </p>
+      <img src="/assets/geckos/gecko_1.png" alt="Gecko" class="invite-gecko-img">
+      <button class="invite-action">
+        <span class="invite-action-icon">👥</span>
+        <span class="invite-action-text">Invite</span>
+        <span class="invite-bonus">
+          <img src="${COIN_ICON}" class="invite-bonus-icon" alt="coin">
+          +10
+        </span>
+      </button>
+      <div class="invite-code-section">
+        <div class="invite-code-label">내 추천 코드</div>
+        <div class="invite-code" id="invite-code-display">------</div>
+      </div>
+      <div class="invite-friend-list" id="invite-friend-list">
+        <div class="invite-friend-item">Empty</div>
+        <div class="invite-friend-item">Empty</div>
+        <div class="invite-friend-item">Empty</div>
+        <div class="invite-friend-item">Empty</div>
+        <div class="invite-friend-item">Empty</div>
+      </div>
+    </div>
+  `;
+
   container.append(header, phaseBar, mainContent);
-  document.body.append(toast, countdownOverlay);
+  document.body.append(toast, countdownOverlay, inviteModalOverlay);
 
   return {
     header: {
       connectionStatus,
       coinsDisplay: coinsItem.querySelector('.coins-value')!,
-      ticketsDisplay: ticketsItem.querySelector('.tickets-value')!
+      ticketsDisplay: ticketsItem.querySelector('.tickets-value')!,
+      inviteBtn
     },
     phaseBar,
     mainContent,
@@ -119,6 +164,11 @@ function createBaseLayout(container: HTMLElement): UIElements {
     countdownOverlay: {
       container: countdownOverlay,
       digit: countdownDigit
+    },
+    inviteModal: {
+      overlay: inviteModalOverlay,
+      codeDisplay: inviteModalOverlay.querySelector('#invite-code-display')!,
+      friendList: inviteModalOverlay.querySelector('#invite-friend-list')!
     }
   };
 }
@@ -129,6 +179,70 @@ function updateHeader(elements: UIElements, state: ClientState): void {
   if (state.self?.wallet) {
     elements.header.coinsDisplay.textContent = formatNumber(state.self.wallet.coins);
     elements.header.ticketsDisplay.textContent = String(state.self.wallet.tickets);
+  }
+}
+
+function updateInviteModal(elements: UIElements, state: ClientState, store: Store): void {
+  const { overlay, codeDisplay } = elements.inviteModal;
+  const { inviteBtn } = elements.header;
+
+  // Update modal visibility
+  if (state.showInviteModal) {
+    overlay.classList.add('show');
+  } else {
+    overlay.classList.remove('show');
+  }
+
+  // Update referral code display
+  if (state.self?.referralCode) {
+    codeDisplay.textContent = state.self.referralCode;
+  }
+
+  // Set up event listeners (only once)
+  if (!inviteBtn.dataset.initialized) {
+    inviteBtn.dataset.initialized = 'true';
+    inviteBtn.addEventListener('click', () => {
+      store.setShowInviteModal(true);
+    });
+  }
+
+  const closeBtn = overlay.querySelector('.invite-close-btn');
+  if (closeBtn && !closeBtn.getAttribute('data-initialized')) {
+    closeBtn.setAttribute('data-initialized', 'true');
+    closeBtn.addEventListener('click', () => {
+      store.setShowInviteModal(false);
+    });
+  }
+
+  // Click outside to close
+  if (!overlay.dataset.initialized) {
+    overlay.dataset.initialized = 'true';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        store.setShowInviteModal(false);
+      }
+    });
+  }
+
+  // Invite action button - copy invite link
+  const inviteAction = overlay.querySelector('.invite-action');
+  if (inviteAction && !inviteAction.getAttribute('data-initialized')) {
+    inviteAction.setAttribute('data-initialized', 'true');
+    inviteAction.addEventListener('click', async () => {
+      const referralCode = state.self?.referralCode;
+      if (referralCode) {
+        const inviteUrl = `${window.location.origin}?ref=${referralCode}`;
+        try {
+          await navigator.clipboard.writeText(inviteUrl);
+          store.showToast({ message: '초대 링크가 복사되었습니다!', tone: 'success' });
+          window.setTimeout(() => store.clearToast(), 2000);
+        } catch {
+          // Fallback for browsers without clipboard API
+          store.showToast({ message: `추천 코드: ${referralCode}`, tone: 'info' });
+          window.setTimeout(() => store.clearToast(), 3000);
+        }
+      }
+    });
   }
 }
 

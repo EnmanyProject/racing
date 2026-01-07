@@ -97,6 +97,7 @@ export interface SelfInfo {
   selectionId?: string;
   wallet: PlayerWallet;
   referralCode?: string;
+  referralCount?: number;
   dailyTicketClaimed: boolean;
 }
 
@@ -109,6 +110,7 @@ export interface ClientState {
   toast: ToastMessage | null;
   myTapCount: number;
   playerResult: PlayerRaceResult | null;
+  showInviteModal: boolean;
 }
 
 export type Listener = (state: ClientState) => void;
@@ -126,6 +128,7 @@ export interface Store {
   incrementMyTaps(): void;
   resetMyTaps(): void;
   updateWallet(wallet: PlayerWallet): void;
+  setShowInviteModal(show: boolean): void;
   setPlayerResult(result: PlayerRaceResult | null): void;
 }
 
@@ -138,7 +141,8 @@ export function createStore(): Store {
     selectedLizardId: null,
     toast: null,
     myTapCount: 0,
-    playerResult: null
+    playerResult: null,
+    showInviteModal: false
   };
 
   const listeners = new Set<Listener>();
@@ -169,7 +173,8 @@ export function createStore(): Store {
       },
       self: state.self ? { ...state.self, wallet: { ...state.self.wallet } } : null,
       toast: state.toast ? { ...state.toast } : null,
-      playerResult: state.playerResult ? { ...state.playerResult } : null
+      playerResult: state.playerResult ? { ...state.playerResult } : null,
+      showInviteModal: state.showInviteModal
     };
   }
 
@@ -254,6 +259,10 @@ export function createStore(): Store {
         state.self.wallet = wallet;
         emit();
       }
+    },
+    setShowInviteModal(show) {
+      state.showInviteModal = show;
+      emit();
     },
     setPlayerResult(result) {
       state.playerResult = result;
