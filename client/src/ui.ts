@@ -534,6 +534,9 @@ function renderTapReadyView(
   }
 
   // Tap Button (disabled during waiting)
+  const buttonWrapper = document.createElement('div');
+  buttonWrapper.className = 'tap-button-wrapper';
+
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.disabled = true;
@@ -542,8 +545,9 @@ function renderTapReadyView(
   buttonImg.src = TAP_BUTTON_IMG;
   buttonImg.alt = 'TAP!';
   tapButton.append(buttonImg);
+  buttonWrapper.append(tapButton);
 
-  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, tapButton);
+  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, buttonWrapper);
   container.append(view);
 }
 
@@ -587,6 +591,9 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   counter.textContent = String(state.myTapCount);
 
   // Tap Button
+  const buttonWrapper = document.createElement('div');
+  buttonWrapper.className = 'tap-button-wrapper';
+
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.id = 'tap-button';
@@ -611,6 +618,8 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     }
   }, { passive: false });
 
+  buttonWrapper.append(tapButton);
+
   // Countdown
   const countdownText = document.createElement('div');
   countdownText.className = 'tap-countdown';
@@ -618,7 +627,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
   countdownText.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
 
-  view.append(counterLabel, counter, tapButton, countdownText);
+  view.append(counterLabel, counter, buttonWrapper, countdownText);
   container.append(view);
 }
 

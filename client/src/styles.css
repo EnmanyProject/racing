@@ -384,51 +384,71 @@ body {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
 }
 
-.tap-button {
+/* 버튼 컨테이너 - 받침대 역할 */
+.tap-button-wrapper {
   position: relative;
   width: min(160px, 45vw);
+  padding-bottom: 15px;
+}
+
+/* 버튼 받침대 (눌렸을 때 보이는 어두운 부분) */
+.tap-button-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  width: 90%;
+  height: 20px;
+  background: radial-gradient(ellipse at center, #5a0000 0%, #3a0000 70%, transparent 100%);
+  border-radius: 50%;
+  z-index: 0;
+}
+
+.tap-button {
+  position: relative;
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
   border: none;
   background:
-    radial-gradient(circle at 35% 25%, rgba(255,255,255,0.4) 0%, transparent 40%),
-    radial-gradient(circle at 30% 30%, #FF6B6B 0%, var(--red-button) 40%, var(--red-button-active) 100%);
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,0.5) 0%, transparent 35%),
+    radial-gradient(circle at 50% 50%, #FF6B6B 0%, #E74C3C 50%, #C0392B 100%);
   box-shadow:
-    0 8px 0 #8B0000,
-    0 10px 15px rgba(0, 0, 0, 0.4),
-    inset 0 -8px 25px rgba(0, 0, 0, 0.3),
-    inset 0 8px 25px rgba(255, 255, 255, 0.15);
+    0 15px 0 #8B0000,
+    0 15px 25px rgba(0, 0, 0, 0.5),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.35),
+    inset 0 10px 30px rgba(255, 255, 255, 0.2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  transition: transform 0.05s ease-out, box-shadow 0.05s ease-out;
   user-select: none;
   transform: translateY(0);
+  z-index: 1;
 }
 
 .tap-button:active {
-  transform: translateY(6px);
+  transform: translateY(12px);
   box-shadow:
-    0 2px 0 #8B0000,
-    0 4px 8px rgba(0, 0, 0, 0.3),
-    inset 0 -4px 15px rgba(0, 0, 0, 0.4),
-    inset 0 4px 15px rgba(255, 255, 255, 0.1);
+    0 3px 0 #8B0000,
+    0 5px 10px rgba(0, 0, 0, 0.3),
+    inset 0 -5px 20px rgba(0, 0, 0, 0.5),
+    inset 0 5px 15px rgba(255, 255, 255, 0.1);
 }
 
 .tap-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: translateY(0);
 }
 
 .tap-button:disabled:active {
   transform: translateY(0);
   box-shadow:
-    0 8px 0 #8B0000,
-    0 10px 15px rgba(0, 0, 0, 0.4),
-    inset 0 -8px 25px rgba(0, 0, 0, 0.3),
-    inset 0 8px 25px rgba(255, 255, 255, 0.15);
+    0 15px 0 #8B0000,
+    0 15px 25px rgba(0, 0, 0, 0.5),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.35),
+    inset 0 10px 30px rgba(255, 255, 255, 0.2);
 }
 
 .tap-button img {
@@ -436,7 +456,12 @@ body {
   height: 55%;
   object-fit: contain;
   pointer-events: none;
-  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4));
+  transition: transform 0.05s ease-out;
+}
+
+.tap-button:active img {
+  transform: scale(0.95);
 }
 
 .tap-countdown {
