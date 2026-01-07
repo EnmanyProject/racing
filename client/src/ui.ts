@@ -580,7 +580,11 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     view.append(geckoInfo);
   }
 
-  // Tap Counter
+  // Tap Counter Container
+  const counterContainer = document.createElement('div');
+  counterContainer.className = 'tap-counter-container';
+  counterContainer.id = 'tap-counter-container';
+
   const counterLabel = document.createElement('div');
   counterLabel.className = 'tap-counter-label';
   counterLabel.textContent = 'Your Taps';
@@ -589,6 +593,8 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   counter.className = 'tap-counter';
   counter.id = 'tap-counter';
   counter.textContent = String(state.myTapCount);
+
+  counterContainer.append(counterLabel, counter);
 
   // Tap Button
   const buttonWrapper = document.createElement('div');
@@ -604,18 +610,31 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   buttonImg.alt = 'TAP!';
   tapButton.append(buttonImg);
 
-  tapButton.addEventListener('click', () => {
-    if (selectedGecko) {
-      actions.sendBoost(selectedGecko.id);
-    }
-  });
+  // 탭 애니메이션 효과
+  const triggerTapEffect = () => {
+    if (!selectedGecko) return;
+    actions.sendBoost(selectedGecko.id);
+
+    // 카운터 펄스 애니메이션
+    counter.classList.remove('pulse');
+    void counter.offsetWidth; // reflow 강제
+    counter.classList.add('pulse');
+
+    // +1 플로팅 텍스트
+    const floatText = document.createElement('div');
+    floatText.className = 'tap-float';
+    floatText.textContent = '+1';
+    floatText.style.left = `${Math.random() * 40 + 30}%`;
+    counterContainer.append(floatText);
+    setTimeout(() => floatText.remove(), 600);
+  };
+
+  tapButton.addEventListener('click', triggerTapEffect);
 
   // Support touch events for faster response
   tapButton.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (selectedGecko) {
-      actions.sendBoost(selectedGecko.id);
-    }
+    triggerTapEffect();
   }, { passive: false });
 
   buttonWrapper.append(tapButton);
@@ -627,7 +646,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
   countdownText.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
 
-  view.append(counterLabel, counter, buttonWrapper, countdownText);
+  view.append(counterContainer, buttonWrapper, countdownText);
   container.append(view);
 }
 
