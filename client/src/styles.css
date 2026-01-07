@@ -148,82 +148,88 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 12px;
-  gap: 10px;
+  padding: 8px;
+  gap: 6px;
   overflow: hidden;
 }
 
 .lobby-title {
   text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--gold);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   flex-shrink: 0;
 }
 
+.lobby-help {
+  text-align: center;
+  font-size: 11px;
+  color: var(--white-soft);
+  flex-shrink: 0;
+}
+
 .gecko-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .gecko-card {
   position: relative;
   background: rgba(0, 0, 0, 0.4);
   border: 2px solid transparent;
-  border-radius: 12px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-height: 0;
+  gap: 2px;
+  width: calc(33.33% - 4px);
+  max-width: 100px;
 }
 
 .gecko-card[data-selected="true"] {
   border-color: var(--gold);
   background: rgba(255, 215, 0, 0.15);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
 }
 
 .gecko-card:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .gecko-image {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
-  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .gecko-name {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11px;
   color: var(--white);
+  text-align: center;
+  line-height: 1.2;
 }
 
 .gecko-stats {
-  display: flex;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--white-soft);
+  display: none;
 }
 
 .gecko-supporters {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 5px;
+  border-radius: 8px;
+  font-size: 9px;
   font-weight: 600;
 }
 
@@ -231,21 +237,21 @@ body {
 .prize-pool-display {
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
   border: 1px solid rgba(255, 215, 0, 0.3);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px;
   text-align: center;
   flex-shrink: 0;
 }
 
 .prize-pool-title {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--white-soft);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
 .prize-pool-amount {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--gold);
   text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
@@ -254,26 +260,27 @@ body {
 .prize-distribution {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 10px;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 9px;
 }
 
 .prize-rank {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 2px;
 }
 
 .prize-rank-badge {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .prize-rank-badge.rank-1 { background: var(--gold); color: var(--black); }

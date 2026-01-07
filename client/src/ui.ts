@@ -377,7 +377,12 @@ function renderLobbyView(
   // Title
   const title = document.createElement('h2');
   title.className = 'lobby-title';
-  title.textContent = 'Choose Your Gecko!';
+  title.textContent = '🦎 도마뱀을 선택하세요!';
+
+  // Help text
+  const help = document.createElement('p');
+  help.className = 'lobby-help';
+  help.textContent = '도마뱀 선택 → 카운트다운 종료 → 탭해서 응원 → 레이스!';
 
   // Prize Pool Display
   const prizePool = document.createElement('div');
@@ -405,7 +410,7 @@ function renderLobbyView(
     grid.append(cardElements.card);
   });
 
-  view.append(title, prizePool, grid);
+  view.append(title, help, prizePool, grid);
   container.append(view);
 }
 
