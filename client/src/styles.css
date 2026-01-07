@@ -148,37 +148,41 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  gap: 16px;
-  overflow-y: auto;
+  padding: 12px;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .lobby-title {
   text-align: center;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--gold);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
 }
 
 .gecko-grid {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .gecko-card {
   position: relative;
   background: rgba(0, 0, 0, 0.4);
-  border: 3px solid transparent;
-  border-radius: 16px;
-  padding: 12px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  min-height: 0;
 }
 
 .gecko-card[data-selected="true"] {
@@ -192,22 +196,23 @@ body {
 }
 
 .gecko-image {
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  flex-shrink: 0;
 }
 
 .gecko-name {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 13px;
   color: var(--white);
 }
 
 .gecko-stats {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 10px;
   color: var(--white-soft);
 }
 
@@ -226,20 +231,21 @@ body {
 .prize-pool-display {
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
   border: 1px solid rgba(255, 215, 0, 0.3);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 10px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .prize-pool-title {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--white-soft);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
 .prize-pool-amount {
-  font-size: 32px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--gold);
   text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
@@ -248,9 +254,9 @@ body {
 .prize-distribution {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  margin-top: 12px;
-  font-size: 11px;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 10px;
 }
 
 .prize-rank {
@@ -260,14 +266,14 @@ body {
 }
 
 .prize-rank-badge {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .prize-rank-badge.rank-1 { background: var(--gold); color: var(--black); }
@@ -285,13 +291,14 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  gap: 24px;
+  padding: 12px;
+  gap: 16px;
+  overflow: hidden;
   background: radial-gradient(circle at center, rgba(231, 76, 60, 0.1), transparent 70%);
 }
 
 .tap-counter {
-  font-size: 48px;
+  font-size: 40px;
   font-weight: 700;
   color: var(--white);
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -306,7 +313,7 @@ body {
 
 .tap-button-container {
   position: relative;
-  width: min(280px, 70vw);
+  width: min(200px, 55vw);
   aspect-ratio: 1;
 }
 
@@ -359,20 +366,20 @@ body {
 .selected-gecko-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   background: rgba(0, 0, 0, 0.4);
-  padding: 12px 20px;
-  border-radius: 20px;
+  padding: 8px 14px;
+  border-radius: 16px;
 }
 
 .selected-gecko-info img {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
 }
 
 .selected-gecko-info .name {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 /* ========================
@@ -496,33 +503,38 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px 16px;
-  gap: 20px;
-  overflow-y: auto;
+  padding: 12px;
+  gap: 8px;
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent);
 }
 
 .results-title {
   text-align: center;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--gold);
+  flex-shrink: 0;
 }
 
 .results-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  overflow: hidden;
 }
 
 .result-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 8px 12px;
   background: rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
-  border-left: 4px solid transparent;
+  border-radius: 10px;
+  border-left: 3px solid transparent;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .result-item.rank-1 { border-left-color: var(--gold); background: rgba(255, 215, 0, 0.15); }
@@ -530,15 +542,16 @@ body {
 .result-item.rank-3 { border-left-color: #CD7F32; }
 
 .result-rank {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 12px;
   background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .result-item.rank-1 .result-rank { background: var(--gold); color: var(--black); }
@@ -546,9 +559,10 @@ body {
 .result-item.rank-3 .result-rank { background: #CD7F32; color: var(--white); }
 
 .result-gecko-img {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .result-info {
@@ -557,46 +571,48 @@ body {
 
 .result-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .result-taps {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--white-soft);
 }
 
 .result-prize {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--gold);
+  flex-shrink: 0;
 }
 
 /* My Result Card */
 .my-result-card {
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
   border: 2px solid var(--gold);
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 12px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .my-result-title {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--white-soft);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .my-result-rank {
-  font-size: 48px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--gold);
 }
 
 .my-result-prize {
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--jungle-accent);
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 /* ========================
@@ -956,18 +972,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 14px 24px;
-  margin-top: 12px;
+  padding: 10px 16px;
+  margin-top: 8px;
   background: linear-gradient(135deg, #4a90d9, #3b7dd8);
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--white);
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .share-result-btn:hover {
