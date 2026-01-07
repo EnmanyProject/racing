@@ -44,6 +44,14 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
   const raceRunners = new Map<string, HTMLElement>();
 
   let currentPhase: Phase | null = null;
+  let currentSelectedId: string | null = null;
+
+  // 로컬 타이머 - 1초마다 카운트다운 업데이트
+  setInterval(() => {
+    const state = store.getState();
+    updatePhaseBar(elements, state);
+    updateLocalCountdowns(elements, state);
+  }, 100);
 
   store.subscribe((state) => {
     updateHeader(elements, state);
@@ -53,10 +61,14 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
     updateInviteModal(elements, state, store);
 
     const newPhase = state.snapshot?.phase ?? null;
+    const newSelectedId = state.selectedLizardId;
 
-    // Re-render main content when phase changes
-    if (newPhase !== currentPhase) {
+    // Re-render main content when phase changes OR selection changes during LOBBY
+    const selectionChanged = newPhase === 'LOBBY' && newSelectedId !== currentSelectedId;
+
+    if (newPhase !== currentPhase || selectionChanged) {
       currentPhase = newPhase;
+      currentSelectedId = newSelectedId;
       geckoCards.clear();
       raceRunners.clear();
       renderMainContent(elements, state, actions, animator, geckoCards, raceRunners, store);
@@ -65,6 +77,24 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
       updateMainContent(elements, state, actions, animator, geckoCards, raceRunners);
     }
   });
+}
+
+// 로컬 카운트다운 업데이트 (탭 대기 화면)
+function updateLocalCountdowns(elements: UIElements, state: ClientState): void {
+  // 탭 대기 화면 카운트다운
+  const tapReadyCountdown = elements.mainContent.querySelector('#tap-ready-countdown');
+  if (tapReadyCountdown && state.snapshot) {
+    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    tapReadyCountdown.textContent = String(seconds);
+  }
+
+  // 탭 페이즈 카운트다운
+  const tapPhaseCountdown = elements.mainContent.querySelector('#tap-phase-countdown');
+  if (tapPhaseCountdown && state.snapshot) {
+    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
+    tapPhaseCountdown.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
+  }
 }
 
 function createBaseLayout(container: HTMLElement): UIElements {
@@ -507,17 +537,19 @@ function renderTapReadyView(
   const buttonContainer = document.createElement('div');
   buttonContainer.className = 'tap-button-container';
 
+  const buttonBase = document.createElement('div');
+  buttonBase.className = 'tap-button-base';
+
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.disabled = true;
-  tapButton.style.opacity = '0.7';
 
   const buttonImg = document.createElement('img');
   buttonImg.src = TAP_BUTTON_IMG;
   buttonImg.alt = 'TAP!';
   tapButton.append(buttonImg);
 
-  buttonContainer.append(tapButton);
+  buttonContainer.append(tapButton, buttonBase);
 
   // Change gecko button
   const changeBtn = document.createElement('button');
@@ -574,6 +606,9 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   const buttonContainer = document.createElement('div');
   buttonContainer.className = 'tap-button-container';
 
+  const buttonBase = document.createElement('div');
+  buttonBase.className = 'tap-button-base';
+
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.id = 'tap-button';
@@ -598,7 +633,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     }
   }, { passive: false });
 
-  buttonContainer.append(tapButton);
+  buttonContainer.append(tapButton, buttonBase);
 
   // Countdown
   const countdownText = document.createElement('div');
