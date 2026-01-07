@@ -502,7 +502,7 @@ function renderTapReadyView(
   container: HTMLElement,
   state: ClientState,
   _actions: ApiActions,
-  store: Store
+  _store: Store
 ): void {
   const view = document.createElement('div');
   view.className = 'tap-view';
@@ -534,12 +534,6 @@ function renderTapReadyView(
   }
 
   // Tap Button (disabled during waiting)
-  const buttonContainer = document.createElement('div');
-  buttonContainer.className = 'tap-button-container';
-
-  const buttonBase = document.createElement('div');
-  buttonBase.className = 'tap-button-base';
-
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.disabled = true;
@@ -549,17 +543,7 @@ function renderTapReadyView(
   buttonImg.alt = 'TAP!';
   tapButton.append(buttonImg);
 
-  buttonContainer.append(tapButton, buttonBase);
-
-  // Change gecko button
-  const changeBtn = document.createElement('button');
-  changeBtn.className = 'change-gecko-btn';
-  changeBtn.textContent = '← 다른 도마뱀 선택';
-  changeBtn.addEventListener('click', () => {
-    store.setSelection(null);
-  });
-
-  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, buttonContainer, changeBtn);
+  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, tapButton);
   container.append(view);
 }
 
@@ -603,12 +587,6 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   counter.textContent = String(state.myTapCount);
 
   // Tap Button
-  const buttonContainer = document.createElement('div');
-  buttonContainer.className = 'tap-button-container';
-
-  const buttonBase = document.createElement('div');
-  buttonBase.className = 'tap-button-base';
-
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.id = 'tap-button';
@@ -633,8 +611,6 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     }
   }, { passive: false });
 
-  buttonContainer.append(tapButton, buttonBase);
-
   // Countdown
   const countdownText = document.createElement('div');
   countdownText.className = 'tap-countdown';
@@ -642,7 +618,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
   countdownText.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
 
-  view.append(counterLabel, counter, buttonContainer, countdownText);
+  view.append(counterLabel, counter, tapButton, countdownText);
   container.append(view);
 }
 
@@ -885,6 +861,16 @@ function renderResultsView(container: HTMLElement, state: ClientState, store: St
   });
 
   view.append(resultsList);
+
+  // 다음 라운드 버튼
+  const nextRoundBtn = document.createElement('button');
+  nextRoundBtn.className = 'next-round-btn';
+  nextRoundBtn.textContent = '🦎 다음 라운드 참가';
+  nextRoundBtn.addEventListener('click', () => {
+    store.setSelection(null);
+  });
+  view.append(nextRoundBtn);
+
   container.append(view);
 }
 

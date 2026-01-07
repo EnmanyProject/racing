@@ -384,28 +384,9 @@ body {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
 }
 
-.tap-button-container {
-  position: relative;
-  width: min(180px, 50vw);
-  padding-bottom: 20px; /* 버튼 베이스 공간 */
-}
-
-/* 버튼 베이스 (그림자/받침대) */
-.tap-button-base {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 85%;
-  height: 30px;
-  background: radial-gradient(ellipse at center, #8B0000 0%, #5a0000 100%);
-  border-radius: 50%;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-}
-
 .tap-button {
   position: relative;
-  width: 100%;
+  width: min(160px, 45vw);
   aspect-ratio: 1;
   border-radius: 50%;
   border: none;
@@ -413,35 +394,26 @@ body {
     radial-gradient(circle at 35% 25%, rgba(255,255,255,0.4) 0%, transparent 40%),
     radial-gradient(circle at 30% 30%, #FF6B6B 0%, var(--red-button) 40%, var(--red-button-active) 100%);
   box-shadow:
-    0 12px 0 #8B0000,
-    0 12px 20px rgba(0, 0, 0, 0.5),
-    inset 0 -10px 30px rgba(0, 0, 0, 0.3),
-    inset 0 10px 30px rgba(255, 255, 255, 0.15);
+    0 8px 0 #8B0000,
+    0 10px 15px rgba(0, 0, 0, 0.4),
+    inset 0 -8px 25px rgba(0, 0, 0, 0.3),
+    inset 0 8px 25px rgba(255, 255, 255, 0.15);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
   user-select: none;
   transform: translateY(0);
 }
 
-.tap-button:hover {
-  box-shadow:
-    0 14px 0 #8B0000,
-    0 14px 25px rgba(0, 0, 0, 0.5),
-    inset 0 -10px 30px rgba(0, 0, 0, 0.3),
-    inset 0 10px 30px rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
-}
-
 .tap-button:active {
-  transform: translateY(10px);
+  transform: translateY(6px);
   box-shadow:
     0 2px 0 #8B0000,
-    0 4px 10px rgba(0, 0, 0, 0.4),
-    inset 0 -5px 20px rgba(0, 0, 0, 0.4),
-    inset 0 5px 20px rgba(255, 255, 255, 0.1);
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 -4px 15px rgba(0, 0, 0, 0.4),
+    inset 0 4px 15px rgba(255, 255, 255, 0.1);
 }
 
 .tap-button:disabled {
@@ -450,13 +422,13 @@ body {
   transform: translateY(0);
 }
 
-.tap-button:disabled:hover {
+.tap-button:disabled:active {
   transform: translateY(0);
   box-shadow:
-    0 12px 0 #8B0000,
-    0 12px 20px rgba(0, 0, 0, 0.5),
-    inset 0 -10px 30px rgba(0, 0, 0, 0.3),
-    inset 0 10px 30px rgba(255, 255, 255, 0.15);
+    0 8px 0 #8B0000,
+    0 10px 15px rgba(0, 0, 0, 0.4),
+    inset 0 -8px 25px rgba(0, 0, 0, 0.3),
+    inset 0 8px 25px rgba(255, 255, 255, 0.15);
 }
 
 .tap-button img {
@@ -492,27 +464,6 @@ body {
   font-size: 13px;
 }
 
-.change-gecko-btn {
-  margin-top: 12px;
-  padding: 10px 20px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
-  color: var(--white);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.change-gecko-btn:hover {
-  background: rgba(0, 0, 0, 0.7);
-  border-color: var(--gold);
-}
-
-.change-gecko-btn:active {
-  transform: scale(0.95);
-}
 
 /* ========================
    RACING PHASE - TRACK VIEW
@@ -1275,5 +1226,34 @@ body {
 }
 
 .share-result-btn:active {
+  transform: scale(0.98);
+}
+
+/* Next Round Button */
+.next-round-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 20px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+  border: none;
+  border-radius: 12px;
+  color: var(--black);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.next-round-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.5);
+}
+
+.next-round-btn:active {
   transform: scale(0.98);
 }
