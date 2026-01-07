@@ -212,9 +212,7 @@ export function createStore(): Store {
           state.self.wallet = selfPlayer.wallet;
         }
       }
-      if (!state.selectedLizardId && snapshot.lizards.length > 0) {
-        state.selectedLizardId = snapshot.lizards[0].id;
-      }
+      // 자동 선택 제거 - 사용자가 직접 선택하도록 함
       emit();
     },
     updateProgress(progress, isSlowMo) {

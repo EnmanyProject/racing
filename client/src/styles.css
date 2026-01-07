@@ -171,51 +171,68 @@ body {
 
 .gecko-grid {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
+  padding: 0 4px;
 }
 
 .gecko-card {
   position: relative;
-  background: rgba(0, 0, 0, 0.4);
-  border: 2px solid transparent;
-  border-radius: 10px;
-  padding: 6px;
+  background: linear-gradient(180deg, rgba(139, 90, 43, 0.9), rgba(101, 67, 33, 0.95));
+  border: 2px solid #8B5A2B;
+  border-radius: 8px;
+  padding: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: calc(33.33% - 4px);
-  max-width: 100px;
+  flex: 1;
+  max-width: 70px;
 }
 
 .gecko-card[data-selected="true"] {
   border-color: var(--gold);
-  background: rgba(255, 215, 0, 0.15);
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+  background: linear-gradient(180deg, rgba(255, 215, 0, 0.4), rgba(139, 90, 43, 0.9));
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.5);
+}
+
+.gecko-card[data-selected="true"]::before {
+  content: '▼';
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--gold);
+  font-size: 14px;
+  animation: bounce 0.5s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4px); }
 }
 
 .gecko-card:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 .gecko-image {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 55px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .gecko-name {
   font-weight: 700;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--white);
   text-align: center;
-  line-height: 1.2;
+  line-height: 1.1;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
 }
 
 .gecko-stats {
@@ -223,14 +240,7 @@ body {
 }
 
 .gecko-supporters {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 2px 5px;
-  border-radius: 8px;
-  font-size: 9px;
-  font-weight: 600;
+  display: none;
 }
 
 /* Prize Pool Display */
@@ -297,30 +307,86 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 12px;
-  gap: 16px;
+  justify-content: flex-start;
+  padding: 16px;
+  gap: 12px;
   overflow: hidden;
-  background: radial-gradient(circle at center, rgba(231, 76, 60, 0.1), transparent 70%);
+  background:
+    radial-gradient(ellipse at center bottom, rgba(255, 200, 100, 0.3), transparent 60%),
+    linear-gradient(180deg, #2a1810 0%, #4a3020 50%, #2a1810 100%);
+}
+
+/* Progress Bar */
+.tap-progress-bar {
+  width: 100%;
+  max-width: 280px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.tap-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), #FFA500);
+  border-radius: 4px;
+  transition: width 0.1s linear;
+}
+
+.tap-instruction {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--white);
+  text-align: center;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.tap-countdown-big {
+  font-size: 72px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 4px 20px rgba(255, 215, 0, 0.5), 2px 2px 4px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+}
+
+.tap-countdown-label {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--gold);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 .tap-counter {
-  font-size: 40px;
+  font-size: 64px;
   font-weight: 700;
   color: var(--white);
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.8);
 }
 
 .tap-counter-label {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--white-soft);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
+.tap-gecko-display {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+
+.tap-gecko-display img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+}
+
 .tap-button-container {
   position: relative;
-  width: min(200px, 55vw);
+  width: min(160px, 45vw);
   aspect-ratio: 1;
 }
 
@@ -387,6 +453,28 @@ body {
 .selected-gecko-info .name {
   font-weight: 600;
   font-size: 13px;
+}
+
+.change-gecko-btn {
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.change-gecko-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: var(--gold);
+}
+
+.change-gecko-btn:active {
+  transform: scale(0.95);
 }
 
 /* ========================

@@ -322,7 +322,12 @@ function renderMainContent(
 
   switch (state.snapshot.phase) {
     case 'LOBBY':
-      renderLobbyView(elements.mainContent, state, actions, geckoCards);
+      // 도마뱀 선택 시 탭 대기 화면으로 전환
+      if (state.selectedLizardId) {
+        renderTapReadyView(elements.mainContent, state, actions, store);
+      } else {
+        renderLobbyView(elements.mainContent, state, actions, geckoCards);
+      }
       break;
     case 'CLICK_WINDOW':
       renderTapView(elements.mainContent, state, actions);
@@ -348,7 +353,11 @@ function updateMainContent(
 
   switch (state.snapshot.phase) {
     case 'LOBBY':
-      updateLobbyView(state, geckoCards);
+      if (state.selectedLizardId) {
+        updateTapReadyView(elements.mainContent, state);
+      } else {
+        updateLobbyView(state, geckoCards);
+      }
       break;
     case 'CLICK_WINDOW':
       updateTapView(elements.mainContent, state, actions);
@@ -454,6 +463,81 @@ function updateLobbyView(state: ClientState, geckoCards: Map<string, GeckoCardEl
       elements.wins.textContent = `Wins: ${lizard.wins}`;
     }
   });
+}
+
+// ========================
+// TAP READY VIEW (Waiting for race after selecting gecko)
+// ========================
+function renderTapReadyView(
+  container: HTMLElement,
+  state: ClientState,
+  _actions: ApiActions,
+  store: Store
+): void {
+  const view = document.createElement('div');
+  view.className = 'tap-view';
+
+  const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
+  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
+  const seconds = Math.ceil(remaining / 1000);
+
+  // Instruction text
+  const instruction = document.createElement('div');
+  instruction.className = 'tap-instruction';
+  instruction.textContent = 'Tap the button in';
+
+  // Big countdown
+  const countdownBig = document.createElement('div');
+  countdownBig.className = 'tap-countdown-big';
+  countdownBig.id = 'tap-ready-countdown';
+  countdownBig.textContent = String(seconds);
+
+  const countdownLabel = document.createElement('div');
+  countdownLabel.className = 'tap-countdown-label';
+  countdownLabel.textContent = 'Seconds!';
+
+  // Selected Gecko Display
+  const geckoDisplay = document.createElement('div');
+  geckoDisplay.className = 'tap-gecko-display';
+  if (selectedGecko) {
+    geckoDisplay.innerHTML = `<img src="${selectedGecko.image}" alt="${selectedGecko.name}">`;
+  }
+
+  // Tap Button (disabled during waiting)
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'tap-button-container';
+
+  const tapButton = document.createElement('button');
+  tapButton.className = 'tap-button';
+  tapButton.disabled = true;
+  tapButton.style.opacity = '0.7';
+
+  const buttonImg = document.createElement('img');
+  buttonImg.src = TAP_BUTTON_IMG;
+  buttonImg.alt = 'TAP!';
+  tapButton.append(buttonImg);
+
+  buttonContainer.append(tapButton);
+
+  // Change gecko button
+  const changeBtn = document.createElement('button');
+  changeBtn.className = 'change-gecko-btn';
+  changeBtn.textContent = '← 다른 도마뱀 선택';
+  changeBtn.addEventListener('click', () => {
+    store.setSelection(null);
+  });
+
+  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, buttonContainer, changeBtn);
+  container.append(view);
+}
+
+function updateTapReadyView(container: HTMLElement, state: ClientState): void {
+  const countdown = container.querySelector('#tap-ready-countdown');
+  if (countdown && state.snapshot) {
+    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    countdown.textContent = String(seconds);
+  }
 }
 
 // ========================
