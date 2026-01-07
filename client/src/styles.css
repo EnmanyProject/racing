@@ -948,3 +948,33 @@ body {
 .invite-btn-icon {
   font-size: 14px;
 }
+
+/* ========================
+   SHARE RESULT BUTTON
+   ======================== */
+.share-result-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 24px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, #4a90d9, #3b7dd8);
+  border: none;
+  border-radius: 12px;
+  color: var(--white);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.share-result-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(74, 144, 217, 0.4);
+}
+
+.share-result-btn:active {
+  transform: scale(0.98);
+}

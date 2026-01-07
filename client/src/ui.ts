@@ -59,7 +59,7 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
       currentPhase = newPhase;
       geckoCards.clear();
       raceRunners.clear();
-      renderMainContent(elements, state, actions, animator, geckoCards, raceRunners);
+      renderMainContent(elements, state, actions, animator, geckoCards, raceRunners, store);
     } else {
       // Update existing views
       updateMainContent(elements, state, actions, animator, geckoCards, raceRunners);
@@ -305,7 +305,8 @@ function renderMainContent(
   actions: ApiActions,
   animator: Animator,
   geckoCards: Map<string, GeckoCardElements>,
-  raceRunners: Map<string, HTMLElement>
+  raceRunners: Map<string, HTMLElement>,
+  store: Store
 ): void {
   elements.mainContent.innerHTML = '';
 
@@ -330,7 +331,7 @@ function renderMainContent(
       renderRaceView(elements.mainContent, state, animator, raceRunners);
       break;
     case 'RESULTS':
-      renderResultsView(elements.mainContent, state);
+      renderResultsView(elements.mainContent, state, store);
       break;
   }
 }
@@ -621,7 +622,7 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
 // ========================
 // RESULTS VIEW
 // ========================
-function renderResultsView(container: HTMLElement, state: ClientState): void {
+function renderResultsView(container: HTMLElement, state: ClientState, store: Store): void {
   const view = document.createElement('div');
   view.className = 'results-view';
 
@@ -639,6 +640,41 @@ function renderResultsView(container: HTMLElement, state: ClientState): void {
       <div class="my-result-prize">+${state.playerResult.prizeEarned} Geckoin</div>
     `;
     view.append(myResultCard);
+
+    // Share Button
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'share-result-btn';
+    shareBtn.innerHTML = '📤 결과 공유하기';
+    shareBtn.addEventListener('click', async () => {
+      const result = state.playerResult;
+      if (!result) return;
+
+      const shareText = `🦎 Gecko Sprint 결과!\n\n` +
+        `🏆 ${result.rank}위 달성!\n` +
+        `👆 ${result.myTaps} taps\n` +
+        `💰 +${result.prizeEarned} Geckoin 획득!\n\n` +
+        `지금 바로 도전하세요! ${window.location.origin}?ref=${state.self?.referralCode || ''}`;
+
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Gecko Sprint',
+            text: shareText,
+            url: window.location.origin
+          });
+        } else {
+          await navigator.clipboard.writeText(shareText);
+          store.showToast({ message: '결과가 복사되었습니다!', tone: 'success' });
+          window.setTimeout(() => store.clearToast(), 2000);
+        }
+      } catch {
+        // User cancelled or error
+        await navigator.clipboard.writeText(shareText);
+        store.showToast({ message: '결과가 복사되었습니다!', tone: 'success' });
+        window.setTimeout(() => store.clearToast(), 2000);
+      }
+    });
+    view.append(shareBtn);
   }
 
   view.append(title);
