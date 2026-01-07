@@ -542,32 +542,120 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--track-green);
   position: relative;
   overflow: hidden;
+  /* 정글 스타디움 배경 */
+  background:
+    /* 상단 관중석 그라데이션 */
+    linear-gradient(180deg,
+      rgba(0, 0, 0, 0.8) 0%,
+      rgba(20, 60, 20, 0.6) 15%,
+      transparent 30%
+    ),
+    /* 좌우 관중석 느낌 */
+    linear-gradient(90deg,
+      rgba(0, 0, 0, 0.4) 0%,
+      transparent 10%,
+      transparent 90%,
+      rgba(0, 0, 0, 0.4) 100%
+    ),
+    /* 하단 관중석 */
+    linear-gradient(0deg,
+      rgba(0, 0, 0, 0.6) 0%,
+      transparent 20%
+    ),
+    /* 트랙 잔디 배경 */
+    radial-gradient(ellipse at center 80%,
+      var(--jungle-light) 0%,
+      var(--jungle-green) 40%,
+      var(--jungle-dark) 100%
+    );
+}
+
+/* 관중 응원 효과 */
+.race-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    /* 좌측 응원봉 빛 */
+    radial-gradient(circle at 5% 30%, rgba(255, 215, 0, 0.3) 0%, transparent 15%),
+    radial-gradient(circle at 8% 50%, rgba(124, 252, 0, 0.2) 0%, transparent 10%),
+    radial-gradient(circle at 3% 70%, rgba(255, 107, 107, 0.2) 0%, transparent 12%),
+    /* 우측 응원봉 빛 */
+    radial-gradient(circle at 95% 25%, rgba(255, 215, 0, 0.3) 0%, transparent 15%),
+    radial-gradient(circle at 92% 55%, rgba(0, 206, 209, 0.2) 0%, transparent 10%),
+    radial-gradient(circle at 97% 75%, rgba(147, 112, 219, 0.2) 0%, transparent 12%);
+  animation: crowdCheer 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes crowdCheer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 스타디움 조명 효과 */
+.race-view::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200%;
+  height: 100%;
+  background: radial-gradient(ellipse at center top,
+    rgba(255, 255, 255, 0.1) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
 
 .race-track {
   flex: 1;
   display: flex;
   flex-direction: row;
-  padding: 16px 8px;
+  padding: 40px 8px 16px;
   gap: 4px;
+  position: relative;
+  z-index: 2;
 }
 
 .race-lane {
   flex: 1;
   position: relative;
   background:
+    /* 트랙 레인 라인 */
+    linear-gradient(90deg,
+      rgba(255, 255, 255, 0.1) 0px,
+      transparent 2px,
+      transparent calc(100% - 2px),
+      rgba(255, 255, 255, 0.1) 100%
+    ),
+    /* 거리 표시 줄무늬 */
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.05) 0px,
+      rgba(255, 255, 255, 0.05) 2px,
+      transparent 2px,
+      transparent 50px
+    ),
+    /* 잔디 질감 */
     repeating-linear-gradient(
       0deg,
       var(--track-green) 0px,
-      var(--track-green) 30px,
-      var(--track-dark) 30px,
-      var(--track-dark) 60px
+      var(--track-green) 25px,
+      var(--track-dark) 25px,
+      var(--track-dark) 50px
     );
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: 4px;
+  overflow: visible;
+  /* 레인 구분선 */
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.1),
+    inset -1px 0 0 rgba(255, 255, 255, 0.1);
 }
 
 .lane-marker {
@@ -575,23 +663,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 20px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      var(--white) 0px,
-      var(--white) 10px,
-      var(--black) 10px,
-      var(--black) 20px
-    );
-}
-
-.finish-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 30px;
+  height: 24px;
   background:
     repeating-linear-gradient(
       90deg,
@@ -600,6 +672,47 @@ body {
       var(--black) 8px,
       var(--black) 16px
     );
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.finish-line {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  height: 35px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--white) 0px,
+      var(--white) 10px,
+      var(--black) 10px,
+      var(--black) 20px
+    );
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(255, 255, 255, 0.3);
+  z-index: 10;
+}
+
+/* 결승선 깃발 효과 */
+.finish-line::before {
+  content: '🏁 FINISH 🏁';
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  animation: finishPulse 1s ease-in-out infinite;
+}
+
+@keyframes finishPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
 }
 
 .race-runner {
@@ -609,6 +722,116 @@ body {
   width: 48px;
   height: 48px;
   transition: bottom 0.15s linear;
+}
+
+/* 1등 도마뱀 스포트라이트 효과 */
+.race-runner.leading {
+  z-index: 100;
+}
+
+.race-runner.leading::before {
+  content: '👑';
+  position: absolute;
+  top: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  animation: crownBounce 0.5s ease-in-out infinite;
+  filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.8));
+  z-index: 10;
+}
+
+@keyframes crownBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+/* 1등 스포트라이트 조명 */
+.race-runner.leading::after {
+  content: '';
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 150px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 215, 0, 0) 0%,
+    rgba(255, 215, 0, 0.3) 50%,
+    rgba(255, 215, 0, 0.5) 100%
+  );
+  clip-path: polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+  animation: spotlightPulse 1s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes spotlightPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* 1등 도마뱀 이미지 강조 */
+.race-runner.leading img {
+  filter:
+    drop-shadow(0 0 15px rgba(255, 215, 0, 0.8))
+    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  transform-origin: center bottom;
+}
+
+/* 각축전 효과 - 접전 중인 도마뱀들 */
+.race-runner.close-race {
+  animation: tensionShake 0.1s ease-in-out infinite;
+}
+
+@keyframes tensionShake {
+  0%, 100% { transform: translateX(-50%) translateX(0); }
+  25% { transform: translateX(-50%) translateX(-1px); }
+  75% { transform: translateX(-50%) translateX(1px); }
+}
+
+/* 속도감 표현 - 스피드 라인 */
+.race-runner .speed-lines {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 30px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.race-runner.leading .speed-lines,
+.race-runner.close-race .speed-lines {
+  opacity: 1;
+}
+
+.race-runner .speed-lines::before,
+.race-runner .speed-lines::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 3px;
+  height: 20px;
+  background: linear-gradient(0deg, rgba(255, 255, 255, 0.6), transparent);
+  animation: speedLine 0.3s linear infinite;
+}
+
+.race-runner .speed-lines::before {
+  left: 8px;
+  animation-delay: 0s;
+}
+
+.race-runner .speed-lines::after {
+  right: 8px;
+  animation-delay: 0.15s;
+}
+
+@keyframes speedLine {
+  0% { opacity: 1; height: 15px; }
+  100% { opacity: 0; height: 25px; transform: translateY(10px); }
 }
 
 .race-runner img {

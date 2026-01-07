@@ -694,6 +694,18 @@ function renderRaceView(
     .filter((lz) => lz.finishTime !== undefined)
     .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity)) ?? [];
 
+  // 1등 도마뱀 찾기 (아직 도착하지 않은 도마뱀 중에서)
+  const activeLizards = state.snapshot?.lizards.filter((lz) => lz.finishTime === undefined) ?? [];
+  const leadingLizard = activeLizards.length > 0
+    ? activeLizards.reduce((leader, lz) => lz.progress > leader.progress ? lz : leader)
+    : null;
+
+  // 각축전 감지 (1등과 5% 이내 차이)
+  const closeRaceThreshold = 0.05;
+  const closeRaceLizards = leadingLizard
+    ? activeLizards.filter((lz) => leadingLizard.progress - lz.progress <= closeRaceThreshold)
+    : [];
+
   // Create lanes for each gecko
   state.snapshot?.lizards.forEach((lizard) => {
     const lane = document.createElement('div');
@@ -704,10 +716,21 @@ function renderRaceView(
     runner.dataset.lizardId = lizard.id;
     runner.style.bottom = `${lizard.progress * 100}%`;
 
+    // 1등 도마뱀 하이라이트
+    if (leadingLizard && lizard.id === leadingLizard.id && !lizard.finishTime) {
+      runner.classList.add('leading');
+    }
+
+    // 각축전 중인 도마뱀 (2마리 이상이 접전 중일 때)
+    if (closeRaceLizards.length >= 2 && closeRaceLizards.some((lz) => lz.id === lizard.id)) {
+      runner.classList.add('close-race');
+    }
+
     // 도착한 도마뱀에 finished 클래스 추가
     const finishRank = finishedLizards.findIndex((lz) => lz.id === lizard.id) + 1;
     if (finishRank > 0) {
       runner.classList.add('finished');
+      runner.classList.remove('leading', 'close-race');
 
       // 순위 뱃지 추가
       const rankBadge = document.createElement('div');
@@ -720,11 +743,15 @@ function renderRaceView(
     runnerImg.src = lizard.image;
     runnerImg.alt = lizard.name;
 
+    // 스피드 라인 추가
+    const speedLines = document.createElement('div');
+    speedLines.className = 'speed-lines';
+
     const tapCount = document.createElement('div');
     tapCount.className = 'tap-count';
     tapCount.textContent = `${state.snapshot?.clickTotals[lizard.id] ?? 0}`;
 
-    runner.append(runnerImg, tapCount);
+    runner.append(runnerImg, speedLines, tapCount);
     lane.append(runner);
 
     // Start marker
@@ -766,6 +793,18 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
     .filter((lz) => lz.finishTime !== undefined)
     .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity)) ?? [];
 
+  // 1등 도마뱀 찾기 (아직 도착하지 않은 도마뱀 중에서)
+  const activeLizards = state.snapshot?.lizards.filter((lz) => lz.finishTime === undefined) ?? [];
+  const leadingLizard = activeLizards.length > 0
+    ? activeLizards.reduce((leader, lz) => lz.progress > leader.progress ? lz : leader)
+    : null;
+
+  // 각축전 감지 (1등과 5% 이내 차이)
+  const closeRaceThreshold = 0.05;
+  const closeRaceLizards = leadingLizard
+    ? activeLizards.filter((lz) => leadingLizard.progress - lz.progress <= closeRaceThreshold)
+    : [];
+
   state.snapshot?.lizards.forEach((lizard) => {
     const runner = raceRunners.get(lizard.id);
     if (runner) {
@@ -773,10 +812,29 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
       const progress = Math.min(lizard.progress * 100, 95);
       runner.style.bottom = `${progress}%`;
 
+      // 1등 하이라이트 업데이트 (카메라 워킹 효과)
+      if (leadingLizard && lizard.id === leadingLizard.id && !lizard.finishTime) {
+        if (!runner.classList.contains('leading')) {
+          runner.classList.add('leading');
+        }
+      } else {
+        runner.classList.remove('leading');
+      }
+
+      // 각축전 효과 업데이트
+      if (closeRaceLizards.length >= 2 && closeRaceLizards.some((lz) => lz.id === lizard.id) && !lizard.finishTime) {
+        if (!runner.classList.contains('close-race')) {
+          runner.classList.add('close-race');
+        }
+      } else {
+        runner.classList.remove('close-race');
+      }
+
       // 도착한 도마뱀에 finished 클래스 추가
       const finishRank = finishedLizards.findIndex((lz) => lz.id === lizard.id) + 1;
       if (finishRank > 0 && !runner.classList.contains('finished')) {
         runner.classList.add('finished');
+        runner.classList.remove('leading', 'close-race');
 
         // 순위 뱃지 추가 (아직 없으면)
         if (!runner.querySelector('.rank-badge')) {
