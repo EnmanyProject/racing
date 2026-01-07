@@ -595,6 +595,156 @@ body {
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  /* 달리기 애니메이션 */
+  animation: geckoRun 0.2s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+/* 도마뱀 달리기 애니메이션 - 좌우로 팔다리 휘저으면서 */
+@keyframes geckoRun {
+  0% {
+    transform: rotate(-8deg) translateY(0) scaleY(1);
+  }
+  25% {
+    transform: rotate(0deg) translateY(-3px) scaleY(0.95);
+  }
+  50% {
+    transform: rotate(8deg) translateY(0) scaleY(1);
+  }
+  75% {
+    transform: rotate(0deg) translateY(-3px) scaleY(0.95);
+  }
+  100% {
+    transform: rotate(-8deg) translateY(0) scaleY(1);
+  }
+}
+
+/* 슬로우모션 상태에서 애니메이션 속도 감소 */
+.race-view.slow-mo .race-runner img {
+  animation: geckoRunSlow 0.8s ease-in-out infinite;
+}
+
+@keyframes geckoRunSlow {
+  0% {
+    transform: rotate(-5deg) translateY(0) scaleY(1);
+  }
+  25% {
+    transform: rotate(0deg) translateY(-2px) scaleY(0.97);
+  }
+  50% {
+    transform: rotate(5deg) translateY(0) scaleY(1);
+  }
+  75% {
+    transform: rotate(0deg) translateY(-2px) scaleY(0.97);
+  }
+  100% {
+    transform: rotate(-5deg) translateY(0) scaleY(1);
+  }
+}
+
+/* 터치다운 효과 - 골인 시 */
+.race-runner.finished img {
+  animation: geckoTouchdown 0.5s ease-out forwards;
+}
+
+@keyframes geckoTouchdown {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    transform: translateY(-15px) scale(1.1) rotate(5deg);
+  }
+  60% {
+    transform: translateY(5px) scale(0.9) rotate(-3deg);
+  }
+  80% {
+    transform: translateY(-5px) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/* 터치다운 파티클 효과 */
+.race-runner.finished::after {
+  content: '🎉';
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  animation: celebrationPop 0.6s ease-out forwards;
+}
+
+@keyframes celebrationPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0) translateY(10px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.3) translateY(-10px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1) translateY(-30px);
+  }
+}
+
+/* 순위 뱃지 (도착 순서) */
+.race-runner .rank-badge {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  z-index: 10;
+  animation: badgePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.race-runner .rank-badge.rank-1 {
+  background: var(--gold);
+  color: var(--black);
+  box-shadow: 0 0 15px var(--gold);
+}
+
+.race-runner .rank-badge.rank-2 {
+  background: #C0C0C0;
+  color: var(--black);
+  box-shadow: 0 0 10px #C0C0C0;
+}
+
+.race-runner .rank-badge.rank-3 {
+  background: #CD7F32;
+  color: var(--white);
+  box-shadow: 0 0 10px #CD7F32;
+}
+
+.race-runner .rank-badge.rank-4,
+.race-runner .rank-badge.rank-5 {
+  background: #666;
+  color: var(--white);
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0);
+  }
+  70% {
+    transform: translateX(-50%) scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 
 .race-runner .tap-count {

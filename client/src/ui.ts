@@ -670,6 +670,12 @@ function renderRaceView(
 ): void {
   const view = document.createElement('div');
   view.className = 'race-view';
+  view.id = 'race-view';
+
+  // 슬로우모션 클래스 적용
+  if (state.snapshot?.isSlowMo) {
+    view.classList.add('slow-mo');
+  }
 
   const track = document.createElement('div');
   track.className = 'race-track';
@@ -679,6 +685,11 @@ function renderRaceView(
   finishLine.className = 'finish-line';
   view.append(finishLine);
 
+  // 도착 순서를 계산
+  const finishedLizards = state.snapshot?.lizards
+    .filter((lz) => lz.finishTime !== undefined)
+    .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity)) ?? [];
+
   // Create lanes for each gecko
   state.snapshot?.lizards.forEach((lizard) => {
     const lane = document.createElement('div');
@@ -686,7 +697,20 @@ function renderRaceView(
 
     const runner = document.createElement('div');
     runner.className = 'race-runner';
+    runner.dataset.lizardId = lizard.id;
     runner.style.bottom = `${lizard.progress * 100}%`;
+
+    // 도착한 도마뱀에 finished 클래스 추가
+    const finishRank = finishedLizards.findIndex((lz) => lz.id === lizard.id) + 1;
+    if (finishRank > 0) {
+      runner.classList.add('finished');
+
+      // 순위 뱃지 추가
+      const rankBadge = document.createElement('div');
+      rankBadge.className = `rank-badge rank-${finishRank}`;
+      rankBadge.textContent = String(finishRank);
+      runner.append(rankBadge);
+    }
 
     const runnerImg = document.createElement('img');
     runnerImg.src = lizard.image;
@@ -723,12 +747,41 @@ function renderRaceView(
 }
 
 function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement>): void {
+  // 슬로우모션 클래스 업데이트
+  const raceView = document.getElementById('race-view');
+  if (raceView) {
+    if (state.snapshot?.isSlowMo) {
+      raceView.classList.add('slow-mo');
+    } else {
+      raceView.classList.remove('slow-mo');
+    }
+  }
+
+  // 도착 순서를 계산
+  const finishedLizards = state.snapshot?.lizards
+    .filter((lz) => lz.finishTime !== undefined)
+    .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity)) ?? [];
+
   state.snapshot?.lizards.forEach((lizard) => {
     const runner = raceRunners.get(lizard.id);
     if (runner) {
       // Calculate position from bottom (0% = start, 100% = finish)
       const progress = Math.min(lizard.progress * 100, 95);
       runner.style.bottom = `${progress}%`;
+
+      // 도착한 도마뱀에 finished 클래스 추가
+      const finishRank = finishedLizards.findIndex((lz) => lz.id === lizard.id) + 1;
+      if (finishRank > 0 && !runner.classList.contains('finished')) {
+        runner.classList.add('finished');
+
+        // 순위 뱃지 추가 (아직 없으면)
+        if (!runner.querySelector('.rank-badge')) {
+          const rankBadge = document.createElement('div');
+          rankBadge.className = `rank-badge rank-${finishRank}`;
+          rankBadge.textContent = String(finishRank);
+          runner.append(rankBadge);
+        }
+      }
 
       const tapCount = runner.querySelector('.tap-count');
       if (tapCount) {
