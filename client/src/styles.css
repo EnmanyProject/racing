@@ -572,6 +572,13 @@ body {
     );
 }
 
+/* 카메라 뷰포트 - 트랙을 감싸는 컨테이너 */
+.race-camera-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
 /* 관중 응원 효과 */
 .race-view::before {
   content: '';
@@ -613,14 +620,22 @@ body {
   z-index: 0;
 }
 
+/* 트랙 컨테이너 - 카메라가 따라가는 대상 */
 .race-track {
-  flex: 1;
   display: flex;
   flex-direction: row;
-  padding: 40px 8px 16px;
   gap: 4px;
-  position: relative;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  /* 트랙 높이를 뷰포트의 200%로 설정 (스크롤 공간 확보) */
+  height: 200%;
+  bottom: 0;
+  padding-top: 60px;
+  padding-bottom: 20px;
   z-index: 2;
+  /* 카메라 이동 애니메이션 */
+  transition: transform 0.3s ease-out;
 }
 
 .race-lane {
@@ -675,11 +690,12 @@ body {
   box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
 }
 
+/* 결승선 - 트랙 상단에 고정 */
 .finish-line {
   position: absolute;
-  top: 20px;
-  left: 0;
-  right: 0;
+  top: 40px;
+  left: 8px;
+  right: 8px;
   height: 35px;
   background:
     repeating-linear-gradient(
@@ -692,7 +708,7 @@ body {
   box-shadow:
     0 4px 15px rgba(0, 0, 0, 0.5),
     0 0 30px rgba(255, 255, 255, 0.3);
-  z-index: 10;
+  z-index: 15;
 }
 
 /* 결승선 깃발 효과 */
@@ -713,6 +729,47 @@ body {
 @keyframes finishPulse {
   0%, 100% { transform: translateX(-50%) scale(1); }
   50% { transform: translateX(-50%) scale(1.1); }
+}
+
+/* 현재 카메라 위치 표시 (선두 위치) */
+.camera-indicator {
+  position: absolute;
+  right: 4px;
+  width: 4px;
+  background: var(--gold);
+  border-radius: 2px;
+  z-index: 20;
+  transition: top 0.3s ease-out, height 0.3s ease-out;
+  box-shadow: 0 0 10px var(--gold);
+}
+
+/* 미니맵 - 전체 레이스 진행 상황 */
+.race-minimap {
+  position: absolute;
+  right: 4px;
+  top: 80px;
+  bottom: 20px;
+  width: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.minimap-gecko {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: bottom 0.15s linear;
+}
+
+.minimap-gecko.is-leader {
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 6px var(--gold);
 }
 
 .race-runner {

@@ -666,6 +666,10 @@ function updateTapView(container: HTMLElement, state: ClientState, _actions: Api
 // ========================
 // RACE VIEW
 // ========================
+
+// 도마뱀 색상 매핑
+const GECKO_COLORS = ['#7CFC00', '#00CED1', '#FFD700', '#FF6B6B', '#9370DB'];
+
 function renderRaceView(
   container: HTMLElement,
   state: ClientState,
@@ -681,13 +685,24 @@ function renderRaceView(
     view.classList.add('slow-mo');
   }
 
+  // 카메라 뷰포트 생성
+  const cameraViewport = document.createElement('div');
+  cameraViewport.className = 'race-camera-viewport';
+  cameraViewport.id = 'race-camera-viewport';
+
   const track = document.createElement('div');
   track.className = 'race-track';
+  track.id = 'race-track';
 
-  // Finish Line
+  // Finish Line (뷰포트에 고정)
   const finishLine = document.createElement('div');
   finishLine.className = 'finish-line';
   view.append(finishLine);
+
+  // 미니맵 생성
+  const minimap = document.createElement('div');
+  minimap.className = 'race-minimap';
+  minimap.id = 'race-minimap';
 
   // 도착 순서를 계산
   const finishedLizards = state.snapshot?.lizards
@@ -707,7 +722,7 @@ function renderRaceView(
     : [];
 
   // Create lanes for each gecko
-  state.snapshot?.lizards.forEach((lizard) => {
+  state.snapshot?.lizards.forEach((lizard, index) => {
     const lane = document.createElement('div');
     lane.className = 'race-lane';
 
@@ -764,7 +779,24 @@ function renderRaceView(
 
     // Register with animator
     animator.register(lizard.id, runner, runner);
+
+    // 미니맵에 도마뱀 마커 추가
+    const minimapGecko = document.createElement('div');
+    minimapGecko.className = 'minimap-gecko';
+    minimapGecko.dataset.lizardId = lizard.id;
+    minimapGecko.style.backgroundColor = GECKO_COLORS[index % GECKO_COLORS.length];
+    minimapGecko.style.bottom = `${lizard.progress * 100}%`;
+    if (leadingLizard && lizard.id === leadingLizard.id) {
+      minimapGecko.classList.add('is-leader');
+    }
+    minimap.append(minimapGecko);
   });
+
+  // 카메라 위치 초기 설정
+  const leaderProgress = leadingLizard?.progress ?? 0;
+  updateCameraPosition(track, leaderProgress);
+
+  cameraViewport.append(track);
 
   // Slow-mo indicator
   const slowMoIndicator = document.createElement('div');
@@ -773,8 +805,20 @@ function renderRaceView(
   slowMoIndicator.textContent = 'PHOTO FINISH!';
   slowMoIndicator.style.display = state.snapshot?.isSlowMo ? 'block' : 'none';
 
-  view.append(track, slowMoIndicator);
+  view.append(cameraViewport, minimap, slowMoIndicator);
   container.append(view);
+}
+
+// 카메라 위치 업데이트 함수
+function updateCameraPosition(track: HTMLElement, leaderProgress: number): void {
+  // 선두가 화면 중앙~상단에 위치하도록 카메라 이동
+  // progress 0 = 시작, 1 = 결승선
+  // 카메라는 선두를 따라가되, 시작과 끝에서는 고정
+
+  // 트랙 높이가 200%이므로, 100% 이동하면 전체 트랙을 볼 수 있음
+  // 선두가 50% 이상 진행했을 때부터 카메라 이동 시작
+  const cameraOffset = Math.max(0, Math.min(leaderProgress - 0.3, 0.7)) * 100;
+  track.style.transform = `translateY(${cameraOffset}%)`;
 }
 
 function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement>): void {
@@ -804,6 +848,15 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
   const closeRaceLizards = leadingLizard
     ? activeLizards.filter((lz) => leadingLizard.progress - lz.progress <= closeRaceThreshold)
     : [];
+
+  // 카메라 위치 업데이트 (선두 따라가기)
+  const track = document.getElementById('race-track');
+  if (track && leadingLizard) {
+    updateCameraPosition(track, leadingLizard.progress);
+  }
+
+  // 미니맵 업데이트
+  const minimap = document.getElementById('race-minimap');
 
   state.snapshot?.lizards.forEach((lizard) => {
     const runner = raceRunners.get(lizard.id);
@@ -848,6 +901,19 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
       const tapCount = runner.querySelector('.tap-count');
       if (tapCount) {
         tapCount.textContent = `${state.snapshot?.clickTotals[lizard.id] ?? 0}`;
+      }
+
+      // 미니맵 도마뱀 위치 업데이트
+      if (minimap) {
+        const minimapGecko = minimap.querySelector(`[data-lizard-id="${lizard.id}"]`) as HTMLElement;
+        if (minimapGecko) {
+          minimapGecko.style.bottom = `${lizard.progress * 100}%`;
+          if (leadingLizard && lizard.id === leadingLizard.id) {
+            minimapGecko.classList.add('is-leader');
+          } else {
+            minimapGecko.classList.remove('is-leader');
+          }
+        }
       }
     }
   });
