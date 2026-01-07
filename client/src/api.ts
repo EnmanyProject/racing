@@ -1,5 +1,5 @@
-﻿import { io, Socket } from 'socket.io-client';
-import type { Store } from './store';
+import { io, Socket } from 'socket.io-client';
+import type { Store, PlayerWallet, PlayerRaceResult, SelfInfo } from './store';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? inferSocketUrl();
 const LOCAL_STORAGE_KEY = 'gecko-sprint-player-id';
@@ -63,10 +63,32 @@ function playFanfare() {
   });
 }
 
+function playCoinSound() {
+  const ctx = ensureContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, now);
+  osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.15, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.35);
+}
+
 export interface ApiActions {
   selectLizard(id: string): void;
   sendBoost(id: string): void;
   updateNickname(name: string): void;
+  claimDailyTicket(): void;
+  buyTickets(count: number): void;
+  applyReferral(code: string): void;
+  getPlayerResult(): void;
 }
 
 export function createApi(store: Store): ApiActions {
@@ -91,7 +113,7 @@ export function createApi(store: Store): ApiActions {
     store.setConnection('disconnected');
   });
 
-  socket.on('welcome', (payload: { id: string; nickname: string; selectionId?: string }) => {
+  socket.on('welcome', (payload: SelfInfo) => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(LOCAL_STORAGE_KEY, payload.id);
     }
@@ -119,20 +141,73 @@ export function createApi(store: Store): ApiActions {
       let message = 'Boost not accepted.';
       if (result.reason === 'rate_limited') {
         tone = 'warning';
-        message = 'Cooling down. Try again in a moment.';
+        message = '쿨다운 중입니다. 잠시 후 다시 시도하세요.';
       } else if (result.reason === 'invalid_phase') {
         tone = 'info';
-        message = 'This phase cannot accept boosts.';
+        message = '탭 구간이 아닙니다.';
       } else if (result.reason === 'invalid_lizard') {
         tone = 'error';
-        message = 'Selected gecko was not found.';
+        message = '선택한 게코를 찾을 수 없습니다.';
+      } else if (result.reason === 'no_ticket') {
+        tone = 'error';
+        message = '티켓이 부족합니다!';
+      } else if (result.reason === 'no_selection') {
+        tone = 'warning';
+        message = '먼저 게코를 선택하세요.';
       }
       store.showToast({ message, tone });
       window.setTimeout(() => store.clearToast(), 2300);
     } else if (result.applied) {
       playClick();
-      store.showToast({ message: 'Boost sent!', tone: 'success' });
-      window.setTimeout(() => store.clearToast(), 1600);
+      store.incrementMyTaps();
+    }
+  });
+
+  socket.on('player:result', (result: PlayerRaceResult) => {
+    store.setPlayerResult(result);
+    if (result.prizeEarned > 0) {
+      playCoinSound();
+      store.showToast({
+        message: `+${result.prizeEarned} Geckoin 획득!`,
+        tone: 'success'
+      });
+      window.setTimeout(() => store.clearToast(), 3000);
+    }
+  });
+
+  socket.on('wallet:claim:result', (result: { success: boolean; wallet?: PlayerWallet }) => {
+    if (result.success && result.wallet) {
+      store.updateWallet(result.wallet);
+      playCoinSound();
+      store.showToast({ message: '일일 티켓 수령 완료!', tone: 'success' });
+      window.setTimeout(() => store.clearToast(), 2000);
+    } else {
+      store.showToast({ message: '이미 오늘 티켓을 수령했습니다.', tone: 'warning' });
+      window.setTimeout(() => store.clearToast(), 2000);
+    }
+  });
+
+  socket.on('wallet:buyTickets:result', (result: { success: boolean; wallet?: PlayerWallet }) => {
+    if (result.success && result.wallet) {
+      store.updateWallet(result.wallet);
+      playCoinSound();
+      store.showToast({ message: '티켓 구매 완료!', tone: 'success' });
+      window.setTimeout(() => store.clearToast(), 2000);
+    } else {
+      store.showToast({ message: '코인이 부족합니다.', tone: 'error' });
+      window.setTimeout(() => store.clearToast(), 2000);
+    }
+  });
+
+  socket.on('referral:apply:result', (result: { success: boolean; wallet?: PlayerWallet }) => {
+    if (result.success && result.wallet) {
+      store.updateWallet(result.wallet);
+      playCoinSound();
+      store.showToast({ message: '추천 보너스 +10 코인!', tone: 'success' });
+      window.setTimeout(() => store.clearToast(), 2000);
+    } else {
+      store.showToast({ message: '유효하지 않은 추천 코드입니다.', tone: 'error' });
+      window.setTimeout(() => store.clearToast(), 2000);
     }
   });
 
@@ -146,7 +221,18 @@ export function createApi(store: Store): ApiActions {
     },
     updateNickname(name: string) {
       socket.emit('player:update', { nickname: name });
+    },
+    claimDailyTicket() {
+      socket.emit('wallet:claim');
+    },
+    buyTickets(count: number) {
+      socket.emit('wallet:buyTickets', { count });
+    },
+    applyReferral(code: string) {
+      socket.emit('referral:apply', { code });
+    },
+    getPlayerResult() {
+      socket.emit('player:getResult');
     }
   };
 }
-

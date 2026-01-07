@@ -1,315 +1,768 @@
+/* Mobile-First Responsive Design for Gecko Sprint */
 :root {
-  font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color-scheme: dark;
-  background: radial-gradient(circle at top, rgba(21, 208, 138, 0.18), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(255, 209, 102, 0.12), transparent 45%),
-    #0e1014;
-  color: #f4f6f8;
+  /* Jungle Theme Colors */
+  --jungle-dark: #0a1f0a;
+  --jungle-green: #1a4d1a;
+  --jungle-light: #2d7d2d;
+  --jungle-accent: #7CFC00;
+  --gold: #FFD700;
+  --gold-dark: #CC9900;
+  --red-button: #E74C3C;
+  --red-button-active: #C0392B;
+  --white: #FFFFFF;
+  --white-muted: rgba(255, 255, 255, 0.85);
+  --white-soft: rgba(255, 255, 255, 0.6);
+  --black: #000000;
+  --track-green: #228B22;
+  --track-dark: #1a661a;
+
+  /* Gecko Colors */
+  --gecko-1: #7CFC00;
+  --gecko-2: #00CED1;
+  --gecko-3: #FFD700;
+  --gecko-4: #FF6B6B;
+  --gecko-5: #9370DB;
+
+  /* Typography */
+  font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+
+  /* Layout */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  background: inherit;
+  background: linear-gradient(180deg, var(--jungle-dark) 0%, var(--jungle-green) 50%, var(--jungle-dark) 100%);
+  color: var(--white);
+  touch-action: manipulation;
 }
 
 #app {
-  width: min(1200px, 100%);
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 24px;
-  padding: 48px 32px 64px;
-}
-
-@media (max-width: 980px) {
-  #app {
-    grid-template-columns: 1fr;
-  }
-}
-
-.glass {
-  background: rgba(43, 47, 54, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 18px 40px rgba(14, 16, 20, 0.35);
-  padding: 24px;
-}
-
-.hero {
-  grid-column: 1 / -1;
+  height: 100%;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+  overflow: hidden;
+}
+
+/* ========================
+   HEADER / WALLET BAR
+   ======================== */
+.header {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.hero-title {
+.wallet-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.wallet-item {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
 }
 
-.hero-title h1 {
-  margin: 0 0 6px;
-  font-size: clamp(2rem, 3vw, 2.8rem);
-  color: #15d08a;
+.wallet-item img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
-.hero-title p {
-  margin: 0;
-  max-width: 520px;
-  color: rgba(244, 246, 248, 0.78);
-  line-height: 1.6;
-}
-
-.status-dot {
+.connection-status {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 12px currentColor;
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
 }
 
-.connection-pill {
-  display: inline-flex;
+.connection-status[data-state="connected"] {
+  background: var(--jungle-accent);
+  box-shadow: 0 0 8px var(--jungle-accent);
+}
+
+.connection-status[data-state="disconnected"] {
+  background: var(--red-button);
+  box-shadow: 0 0 8px var(--red-button);
+}
+
+/* ========================
+   PHASE INFO BAR
+   ======================== */
+.phase-bar {
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
   padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(21, 208, 138, 0.32);
-  background: rgba(21, 208, 138, 0.1);
+  background: rgba(0, 0, 0, 0.3);
   font-weight: 600;
+  font-size: 14px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  font-size: 0.78rem;
 }
 
-.connection-pill[data-state='connecting'] {
-  border-color: rgba(56, 178, 255, 0.4);
-  background: rgba(56, 178, 255, 0.12);
-  color: #38b2ff;
+.phase-bar .countdown {
+  color: var(--gold);
+  margin-left: 8px;
 }
 
-.connection-pill[data-state='disconnected'] {
-  border-color: rgba(255, 209, 102, 0.45);
-  background: rgba(255, 209, 102, 0.12);
-  color: #ffd166;
-}
-
-.lineup {
-  display: grid;
-  gap: 16px;
-}
-
-.lizard-card {
-  position: relative;
-  list-style: none;
-  padding: 18px 20px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(14, 16, 20, 0.55);
+/* ========================
+   MAIN CONTENT AREA
+   ======================== */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  cursor: pointer;
-  display: grid;
-  gap: 12px;
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-}
-
-.lizard-card[data-selected='true'] {
-  border-color: rgba(21, 208, 138, 0.75);
-  background: rgba(21, 208, 138, 0.1);
-}
-
-.lizard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.lizard-name {
-  font-weight: 600;
-  font-size: 1.02rem;
-}
-
-.lizard-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 0.82rem;
-  color: rgba(244, 246, 248, 0.62);
-}
-
-.progress-track {
   position: relative;
-  width: 20px;
-  height: 180px;
-  margin: 4px auto 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  overflow: hidden;
 }
 
-.progress-fill {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 0;
-  background: var(--accent);
-  transition: height 0.18s ease;
-}
-
-.runner-token {
-  position: absolute;
-  left: 50%;
-  top: calc(100% - var(--progress, 0%));
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 3px solid #ffd166;
-  background: #0e1014;
-  transform: translate(-50%, -50%);
-  transition: top 0.18s ease;
-  box-shadow: 0 0 10px rgba(255, 209, 102, 0.45);
-}
-
-.card-footer {
+/* ========================
+   LOBBY PHASE - GECKO SELECTION
+   ======================== */
+.lobby-view {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.84rem;
+  flex-direction: column;
+  padding: 16px;
+  gap: 16px;
+  overflow-y: auto;
 }
 
-.card-footer span:last-child {
-  font-weight: 600;
-}
-
-.control-panel {
-  display: grid;
-  gap: 20px;
-}
-
-.join-warning {
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 209, 102, 0.45);
-  background: rgba(255, 209, 102, 0.16);
-  font-weight: 600;
+.lobby-title {
   text-align: center;
-  letter-spacing: 0.03em;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.selection-banner {
+.gecko-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.gecko-card {
+  position: relative;
+  background: rgba(0, 0, 0, 0.4);
+  border: 3px solid transparent;
+  border-radius: 16px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.gecko-card[data-selected="true"] {
+  border-color: var(--gold);
+  background: rgba(255, 215, 0, 0.15);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+.gecko-card:active {
+  transform: scale(0.98);
+}
+
+.gecko-image {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.gecko-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--white);
+}
+
+.gecko-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--white-soft);
+}
+
+.gecko-supporters {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Prize Pool Display */
+.prize-pool-display {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.prize-pool-title {
+  font-size: 12px;
+  color: var(--white-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.prize-pool-amount {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+}
+
+.prize-distribution {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.prize-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.prize-rank-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(21, 208, 138, 0.35);
-  background: rgba(21, 208, 138, 0.1);
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
 }
 
-.selection-banner strong {
-  font-size: 1.05rem;
+.prize-rank-badge.rank-1 { background: var(--gold); color: var(--black); }
+.prize-rank-badge.rank-2 { background: #C0C0C0; color: var(--black); }
+.prize-rank-badge.rank-3 { background: #CD7F32; color: var(--white); }
+.prize-rank-badge.rank-4 { background: #666; color: var(--white); }
+.prize-rank-badge.rank-5 { background: #444; color: var(--white); }
+
+/* ========================
+   TAP PHASE - BIG RED BUTTON
+   ======================== */
+.tap-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  gap: 24px;
+  background: radial-gradient(circle at center, rgba(231, 76, 60, 0.1), transparent 70%);
 }
 
-.boost-button {
-  display: grid;
-  place-items: center;
-  width: clamp(160px, 35vw, 220px);
-  aspect-ratio: 1 / 1;
+.tap-counter {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--white);
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.tap-counter-label {
+  font-size: 14px;
+  color: var(--white-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.tap-button-container {
+  position: relative;
+  width: min(280px, 70vw);
+  aspect-ratio: 1;
+}
+
+.tap-button {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   border: none;
-  font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #0e1014;
-  background: radial-gradient(circle at 30% 30%, #ffd166, #ffb347);
+  background: radial-gradient(circle at 30% 30%, #FF6B6B, var(--red-button) 50%, var(--red-button-active));
+  box-shadow:
+    0 8px 0 var(--red-button-active),
+    0 12px 20px rgba(0, 0, 0, 0.4),
+    inset 0 -8px 20px rgba(0, 0, 0, 0.2),
+    inset 0 8px 20px rgba(255, 255, 255, 0.1);
   cursor: pointer;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
-  box-shadow: 0 18px 30px rgba(255, 209, 102, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s ease;
+  user-select: none;
 }
 
-.boost-button:hover:not(:disabled) {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 22px 36px rgba(255, 209, 102, 0.45);
+.tap-button:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 4px 0 var(--red-button-active),
+    0 6px 10px rgba(0, 0, 0, 0.4),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.2),
+    inset 0 4px 10px rgba(255, 255, 255, 0.1);
 }
 
-.boost-button:disabled {
+.tap-button:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.6;
-  box-shadow: none;
+}
+
+.tap-button img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.tap-countdown {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.selected-gecko-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px 20px;
+  border-radius: 20px;
+}
+
+.selected-gecko-info img {
+  width: 40px;
+  height: 40px;
+}
+
+.selected-gecko-info .name {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* ========================
+   RACING PHASE - TRACK VIEW
+   ======================== */
+.race-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--track-green);
+  position: relative;
+  overflow: hidden;
+}
+
+.race-track {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  padding: 16px 8px;
+  gap: 4px;
+}
+
+.race-lane {
+  flex: 1;
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      var(--track-green) 0px,
+      var(--track-green) 30px,
+      var(--track-dark) 30px,
+      var(--track-dark) 60px
+    );
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.lane-marker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--white) 0px,
+      var(--white) 10px,
+      var(--black) 10px,
+      var(--black) 20px
+    );
+}
+
+.finish-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--white) 0px,
+      var(--white) 8px,
+      var(--black) 8px,
+      var(--black) 16px
+    );
+}
+
+.race-runner {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 48px;
+  transition: bottom 0.15s linear;
+}
+
+.race-runner img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.race-runner .tap-count {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.slow-mo-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+  animation: pulse 0.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* ========================
+   RESULTS PHASE
+   ======================== */
+.results-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  gap: 20px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent);
+}
+
+.results-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gold);
 }
 
 .results-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.results-list li {
-  display: grid;
-  grid-template-columns: 24px 1fr auto;
+.result-item {
+  display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.92rem;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  border-left: 4px solid transparent;
 }
 
+.result-item.rank-1 { border-left-color: var(--gold); background: rgba(255, 215, 0, 0.15); }
+.result-item.rank-2 { border-left-color: #C0C0C0; }
+.result-item.rank-3 { border-left-color: #CD7F32; }
+
+.result-rank {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.result-item.rank-1 .result-rank { background: var(--gold); color: var(--black); }
+.result-item.rank-2 .result-rank { background: #C0C0C0; color: var(--black); }
+.result-item.rank-3 .result-rank { background: #CD7F32; color: var(--white); }
+
+.result-gecko-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.result-info {
+  flex: 1;
+}
+
+.result-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.result-taps {
+  font-size: 12px;
+  color: var(--white-soft);
+}
+
+.result-prize {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gold);
+}
+
+/* My Result Card */
+.my-result-card {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+}
+
+.my-result-title {
+  font-size: 14px;
+  color: var(--white-soft);
+  margin-bottom: 8px;
+}
+
+.my-result-rank {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.my-result-prize {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--jungle-accent);
+  margin-top: 8px;
+}
+
+/* ========================
+   TOAST NOTIFICATIONS
+   ======================== */
 .toast {
   position: fixed;
-  top: 24px;
-  right: 24px;
-  padding: 12px 18px;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
   border-radius: 12px;
-  background: rgba(56, 178, 255, 0.16);
-  border: 1px solid rgba(56, 178, 255, 0.4);
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   font-weight: 600;
-  box-shadow: 0 12px 24px rgba(14, 16, 20, 0.25);
+  font-size: 14px;
+  z-index: 1000;
+  display: none;
+  animation: slideDown 0.3s ease;
 }
 
-.toast[data-tone='success'] {
-  background: rgba(21, 208, 138, 0.18);
-  border-color: rgba(21, 208, 138, 0.38);
+.toast.show {
+  display: block;
 }
 
-.toast[data-tone='warning'] {
-  background: rgba(255, 209, 102, 0.18);
-  border-color: rgba(255, 209, 102, 0.45);
+@keyframes slideDown {
+  from { opacity: 0; transform: translate(-50%, -20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.toast[data-tone='error'] {
-  background: rgba(244, 63, 94, 0.18);
-  border-color: rgba(244, 63, 94, 0.45);
+.toast[data-tone="success"] {
+  background: rgba(45, 125, 45, 0.95);
+  border-color: var(--jungle-accent);
 }
 
+.toast[data-tone="warning"] {
+  background: rgba(255, 152, 0, 0.95);
+  border-color: var(--gold);
+}
+
+.toast[data-tone="error"] {
+  background: rgba(231, 76, 60, 0.95);
+  border-color: var(--red-button);
+}
+
+/* ========================
+   COUNTDOWN OVERLAY
+   ======================== */
 .countdown-overlay {
   position: fixed;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(14, 16, 20, 0.4), rgba(14, 16, 20, 0.75));
-  pointer-events: none;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 900;
 }
 
-.countdown-overlay[data-visible='true'] {
+.countdown-overlay[data-visible="true"] {
   display: flex;
 }
 
 .countdown-digit {
-  font-size: clamp(5rem, 12vw, 10rem);
+  font-size: 120px;
   font-weight: 700;
-  padding: 32px 48px;
-  border-radius: 24px;
-  background: rgba(21, 208, 138, 0.18);
-  border: 1px solid rgba(21, 208, 138, 0.4);
-  box-shadow: 0 45px 80px rgba(14, 16, 20, 0.5);
+  color: var(--gold);
+  text-shadow: 0 0 40px var(--gold);
+  animation: countdownPulse 1s ease-in-out infinite;
+}
+
+@keyframes countdownPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* ========================
+   LOADING STATE
+   ======================== */
+.loading-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================
+   TABLET & DESKTOP RESPONSIVE
+   ======================== */
+@media (min-width: 768px) {
+  .gecko-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .gecko-image {
+    width: 100px;
+    height: 100px;
+  }
+
+  .tap-button-container {
+    width: min(320px, 50vw);
+  }
+
+  .race-track {
+    padding: 24px 16px;
+    gap: 8px;
+  }
+
+  .race-runner {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+@media (min-width: 1024px) {
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .gecko-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .gecko-card {
+    padding: 16px;
+  }
+
+  .gecko-image {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* ========================
+   UTILITY CLASSES
+   ======================== */
+.hidden {
+  display: none !important;
+}
+
+.text-gold {
+  color: var(--gold);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.font-bold {
+  font-weight: 700;
 }

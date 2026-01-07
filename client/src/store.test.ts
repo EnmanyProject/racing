@@ -19,8 +19,8 @@ describe('store', () => {
     store.updateFromServer(
       {
         lizards: [
-          { id: 'lizard-1', name: 'A', color: '#fff', progress: 0, wins: 0 },
-          { id: 'lizard-2', name: 'B', color: '#fff', progress: 0, wins: 0 }
+          { id: 'lizard-1', name: 'A', color: '#fff', image: '', progress: 0, wins: 0, totalTaps: 0 },
+          { id: 'lizard-2', name: 'B', color: '#fff', image: '', progress: 0, wins: 0, totalTaps: 0 }
         ],
         round: 1,
         phase: 'RACING',
@@ -28,7 +28,8 @@ describe('store', () => {
         phaseEndsAt: Date.now() + 10000,
         isSlowMo: false,
         clickTotals: {},
-        racingElapsed: 0
+        racingElapsed: 0,
+        prizePool: { totalTaps: 0, totalPrize: 0, platformFee: 0, burnAmount: 0, ownerClubAmount: 0, playerPrize: 0, distribution: [] }
       },
       { players: [], selections: {} }
     );

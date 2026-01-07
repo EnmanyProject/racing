@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import LobbyManager from './lobby';
 import BotController from './bots';
-import { buildLizardSeeds, clamp } from './utils';
+import { buildLizardSeeds, clamp, calculatePrizePool } from './utils';
 import type {
   BoostResult,
   GameConfig,
@@ -9,7 +9,10 @@ import type {
   LizardState,
   Phase,
   PhaseDefinition,
-  PhaseTiming
+  PhaseTiming,
+  RaceResult,
+  PlayerRaceResult,
+  PrizePool
 } from './types';
 
 const TIMELINE_DEFAULT: PhaseDefinition[] = [
@@ -26,7 +29,14 @@ export const DEFAULT_CONFIG: GameConfig = {
   variance: 0.006,
   boostValue: 0.045,
   boostCooldownMs: 650,
-  slowMoDurationMs: 2_000
+  slowMoDurationMs: 2_000,
+  prizeDistribution: [75, 15, 10, 5, 0],
+  platformFeePercent: 10,
+  burnPercent: 5,
+  ownerClubPercent: 5,
+  dailyFreeTickets: 5,
+  referralBonus: 10,
+  ticketCost: 10
 };
 
 const TRACK_LENGTH = 100;
@@ -41,8 +51,21 @@ export class GameLoop extends EventEmitter {
   private lizards: LizardState[] = buildLizardSeeds().map((seed) => ({
     ...seed,
     progress: 0,
-    wins: 0
+    wins: 0,
+    totalTaps: 0
   }));
+
+  private lastRaceResults: RaceResult[] = [];
+
+  private currentPrizePool: PrizePool = {
+    totalTaps: 0,
+    totalPrize: 0,
+    platformFee: 0,
+    burnAmount: 0,
+    ownerClubAmount: 0,
+    playerPrize: 0,
+    distribution: []
+  };
 
   private timeline: PhaseDefinition[];
 
@@ -88,6 +111,15 @@ export class GameLoop extends EventEmitter {
   }
 
   getState(): GameStateMessage {
+    // Calculate current prize pool based on click totals
+    const totalTaps = Array.from(this.clickTotals.values()).reduce((sum, v) => sum + v, 0);
+    this.currentPrizePool = calculatePrizePool(totalTaps, this.config);
+
+    // Update lizard totalTaps
+    this.lizards.forEach((lz) => {
+      lz.totalTaps = this.clickTotals.get(lz.id) ?? 0;
+    });
+
     return {
       snapshot: {
         lizards: this.lizards.map((lz) => ({ ...lz })),
@@ -99,7 +131,9 @@ export class GameLoop extends EventEmitter {
         clickWindowCountdown:
           this.timing.phase === 'CLICK_WINDOW' ? Math.max(0, this.timing.endsAt - Date.now()) : undefined,
         isSlowMo: this.isSlowMo,
-        clickTotals: Object.fromEntries(this.clickTotals.entries())
+        clickTotals: Object.fromEntries(this.clickTotals.entries()),
+        prizePool: this.currentPrizePool,
+        raceResults: this.timing.phase === 'RESULTS' ? this.lastRaceResults : undefined
       },
       lobby: this.lobby.getState()
     };
@@ -130,6 +164,23 @@ export class GameLoop extends EventEmitter {
       this.emitState();
     }
     return success;
+  }
+
+  getPlayer(playerId: string) {
+    return this.lobby.getPlayer(playerId);
+  }
+
+  claimDailyTicket(player: ReturnType<typeof this.lobby.getPlayer>) {
+    if (!player) return false;
+    return this.lobby.claimDailyTicket(player);
+  }
+
+  buyTickets(playerId: string, count: number): boolean {
+    return this.lobby.buyTickets(playerId, count, this.config.ticketCost);
+  }
+
+  applyReferral(playerId: string, code: string): boolean {
+    return this.lobby.applyReferral(playerId, code);
   }
 
   applyBoost(playerId: string, lizardId: string): BoostResult {
@@ -313,6 +364,16 @@ export class GameLoop extends EventEmitter {
     this.isSlowMo = false;
 
     const ordered = [...this.lizards].sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity));
+
+    // Assign ranks
+    ordered.forEach((lizard, index) => {
+      lizard.rank = index + 1;
+      const actual = this.lizards.find((lz) => lz.id === lizard.id);
+      if (actual) {
+        actual.rank = index + 1;
+      }
+    });
+
     const winner = ordered[0];
     if (winner) {
       const actual = this.lizards.find((lz) => lz.id === winner.id);
@@ -321,7 +382,92 @@ export class GameLoop extends EventEmitter {
       }
     }
 
+    // Calculate prize pool and distribute prizes
+    const totalTaps = Array.from(this.clickTotals.values()).reduce((sum, v) => sum + v, 0);
+    this.currentPrizePool = calculatePrizePool(totalTaps, this.config);
+
+    // Generate race results
+    this.lastRaceResults = ordered.map((lizard, index) => {
+      const rank = index + 1;
+      const participants = this.lobby.getPlayersWithSelection(lizard.id).length;
+      const prizeInfo = this.currentPrizePool.distribution.find(d => d.rank === rank);
+
+      return {
+        rank,
+        lizardId: lizard.id,
+        lizardName: lizard.name,
+        totalTaps: this.clickTotals.get(lizard.id) ?? 0,
+        participants,
+        prizeAmount: prizeInfo?.amount ?? 0,
+        prizePercentage: prizeInfo?.percentage ?? 0
+      };
+    });
+
+    // Distribute prizes to players
+    this.distributeRacePrizes(ordered);
+
     this.emitState();
+  }
+
+  private distributeRacePrizes(rankedLizards: LizardState[]): void {
+    rankedLizards.forEach((lizard, index) => {
+      const rank = index + 1;
+      const prizeInfo = this.currentPrizePool.distribution.find(d => d.rank === rank);
+      if (!prizeInfo || prizeInfo.amount <= 0) return;
+
+      const players = this.lobby.getPlayersWithSelection(lizard.id);
+      if (players.length === 0) return;
+
+      // Calculate individual player prizes based on their tap contribution
+      const lizardTotalTaps = this.clickTotals.get(lizard.id) ?? 0;
+
+      players.forEach((player) => {
+        // For simplicity, distribute equally among participants
+        // In future, could weight by individual tap contribution
+        const individualPrize = Math.floor(prizeInfo.amount / players.length);
+        if (individualPrize > 0) {
+          this.lobby.addCoins(player.id, individualPrize);
+
+          // Emit individual result to player
+          this.emit('playerResult', {
+            playerId: player.id,
+            result: {
+              rank,
+              lizardId: lizard.id,
+              lizardName: lizard.name,
+              myTaps: player.totalBoosts,
+              totalTaps: lizardTotalTaps,
+              participants: players.length,
+              prizeEarned: individualPrize
+            } as PlayerRaceResult
+          });
+        }
+      });
+    });
+  }
+
+  getPlayerResult(playerId: string): PlayerRaceResult | null {
+    const player = this.lobby.getPlayer(playerId);
+    if (!player || !player.selectionId) return null;
+
+    const lizard = this.lizards.find(lz => lz.id === player.selectionId);
+    if (!lizard || lizard.rank === undefined) return null;
+
+    const players = this.lobby.getPlayersWithSelection(lizard.id);
+    const prizeInfo = this.currentPrizePool.distribution.find(d => d.rank === lizard.rank);
+    const individualPrize = prizeInfo && players.length > 0
+      ? Math.floor(prizeInfo.amount / players.length)
+      : 0;
+
+    return {
+      rank: lizard.rank,
+      lizardId: lizard.id,
+      lizardName: lizard.name,
+      myTaps: player.totalBoosts,
+      totalTaps: this.clickTotals.get(lizard.id) ?? 0,
+      participants: players.length,
+      prizeEarned: individualPrize
+    };
   }
 
   private finishRace(): void {

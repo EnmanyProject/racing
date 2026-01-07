@@ -1,37 +1,11 @@
-﻿import type { LizardSeed } from './types';
-
-export const LIZARD_NAMES = [
-  'Aero Dash',
-  'Neon Ripple',
-  'Shadow Glide',
-  'Solar Flicker',
-  'Tide Spinner',
-  'Spire Runner',
-  'Quill Sprint',
-  'Pulse Dancer',
-  'Glint Vortex',
-  'Nova Skitter'
-] as const;
-
-export const LIZARD_COLORS = [
-  '#15d08a',
-  '#ffd166',
-  '#38b2ff',
-  '#f97316',
-  '#6366f1',
-  '#f43f5e',
-  '#22d3ee',
-  '#a855f7',
-  '#2dd4bf',
-  '#fde047'
-] as const;
+import { GECKO_SEEDS, type LizardSeed, type PrizePool, type GameConfig } from './types';
 
 export function buildLizardSeeds(): LizardSeed[] {
-  return LIZARD_NAMES.map((name, index) => ({
-    id: `lizard-${index + 1}`,
-    name,
-    color: LIZARD_COLORS[index % LIZARD_COLORS.length]
-  }));
+  return GECKO_SEEDS.map((seed) => ({ ...seed }));
+}
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 export function now(): number {
@@ -42,6 +16,52 @@ export function randomRange(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
-export function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+export function generateReferralCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+export function getTodayDateString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function calculatePrizePool(
+  totalTaps: number,
+  config: GameConfig
+): PrizePool {
+  const totalPrize = totalTaps;
+  const platformFee = Math.floor(totalPrize * (config.platformFeePercent / 100));
+  const burnAmount = Math.floor(platformFee * (config.burnPercent / (config.burnPercent + config.ownerClubPercent)));
+  const ownerClubAmount = platformFee - burnAmount;
+  const playerPrize = totalPrize - platformFee;
+
+  const distribution = config.prizeDistribution.map((percentage, index) => ({
+    rank: index + 1,
+    percentage,
+    amount: Math.floor(playerPrize * (percentage / 100)),
+  }));
+
+  return {
+    totalTaps,
+    totalPrize,
+    platformFee,
+    burnAmount,
+    ownerClubAmount,
+    playerPrize,
+    distribution,
+  };
+}
+
+export function formatCoins(amount: number): string {
+  if (amount >= 1000000) {
+    return `${(amount / 1000000).toFixed(1)}M`;
+  }
+  if (amount >= 1000) {
+    return `${(amount / 1000).toFixed(1)}K`;
+  }
+  return amount.toString();
 }

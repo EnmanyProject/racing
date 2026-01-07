@@ -1,12 +1,23 @@
-﻿export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
+export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
+export type Phase = 'LOBBY' | 'CLICK_WINDOW' | 'RACING' | 'RESULTS';
+
+export interface PlayerWallet {
+  coins: number;
+  tickets: number;
+  totalEarned: number;
+  totalSpent: number;
+}
 
 export interface LizardView {
   id: string;
   name: string;
   color: string;
+  image: string;
   progress: number;
   wins: number;
   finishTime?: number;
+  totalTaps: number;
+  rank?: number;
 }
 
 export interface LobbyPlayerView {
@@ -17,6 +28,7 @@ export interface LobbyPlayerView {
   totalBoosts: number;
   isBot?: boolean;
   connected: boolean;
+  wallet: PlayerWallet;
 }
 
 export interface LobbyView {
@@ -24,16 +36,54 @@ export interface LobbyView {
   selections: Record<string, number>;
 }
 
+export interface PrizeDistribution {
+  rank: number;
+  percentage: number;
+  amount: number;
+}
+
+export interface PrizePool {
+  totalTaps: number;
+  totalPrize: number;
+  platformFee: number;
+  burnAmount: number;
+  ownerClubAmount: number;
+  playerPrize: number;
+  distribution: PrizeDistribution[];
+}
+
+export interface RaceResult {
+  rank: number;
+  lizardId: string;
+  lizardName: string;
+  totalTaps: number;
+  participants: number;
+  prizeAmount: number;
+  prizePercentage: number;
+}
+
+export interface PlayerRaceResult {
+  rank: number;
+  lizardId: string;
+  lizardName: string;
+  myTaps: number;
+  totalTaps: number;
+  participants: number;
+  prizeEarned: number;
+}
+
 export interface SnapshotView {
   lizards: LizardView[];
   round: number;
-  phase: string;
+  phase: Phase;
   phaseStartedAt: number;
   phaseEndsAt: number;
   racingElapsed?: number;
   clickWindowCountdown?: number;
   isSlowMo: boolean;
   clickTotals: Record<string, number>;
+  prizePool: PrizePool;
+  raceResults?: RaceResult[];
 }
 
 export interface ToastMessage {
@@ -41,13 +91,24 @@ export interface ToastMessage {
   tone: 'info' | 'success' | 'warning' | 'error';
 }
 
+export interface SelfInfo {
+  id: string;
+  nickname: string;
+  selectionId?: string;
+  wallet: PlayerWallet;
+  referralCode?: string;
+  dailyTicketClaimed: boolean;
+}
+
 export interface ClientState {
   connection: ConnectionState;
   snapshot: SnapshotView | null;
   lobby: LobbyView;
-  self: { id: string; nickname: string; selectionId?: string } | null;
+  self: SelfInfo | null;
   selectedLizardId: string | null;
   toast: ToastMessage | null;
+  myTapCount: number;
+  playerResult: PlayerRaceResult | null;
 }
 
 export type Listener = (state: ClientState) => void;
@@ -58,10 +119,14 @@ export interface Store {
   setConnection(state: ConnectionState): void;
   updateFromServer(snapshot: SnapshotView, lobby: LobbyView): void;
   updateProgress(progress: number[], isSlowMo: boolean): void;
-  setSelf(payload: { id: string; nickname: string; selectionId?: string }): void;
+  setSelf(payload: SelfInfo): void;
   setSelection(lizardId: string | null): void;
   showToast(toast: ToastMessage): void;
   clearToast(): void;
+  incrementMyTaps(): void;
+  resetMyTaps(): void;
+  updateWallet(wallet: PlayerWallet): void;
+  setPlayerResult(result: PlayerRaceResult | null): void;
 }
 
 export function createStore(): Store {
@@ -71,7 +136,9 @@ export function createStore(): Store {
     lobby: { players: [], selections: {} },
     self: null,
     selectedLizardId: null,
-    toast: null
+    toast: null,
+    myTapCount: 0,
+    playerResult: null
   };
 
   const listeners = new Set<Listener>();
@@ -83,15 +150,26 @@ export function createStore(): Store {
         ? {
             ...state.snapshot,
             lizards: state.snapshot.lizards.map((lz) => ({ ...lz })),
-            clickTotals: { ...state.snapshot.clickTotals }
+            clickTotals: { ...state.snapshot.clickTotals },
+            prizePool: state.snapshot.prizePool ? { ...state.snapshot.prizePool } : {
+              totalTaps: 0,
+              totalPrize: 0,
+              platformFee: 0,
+              burnAmount: 0,
+              ownerClubAmount: 0,
+              playerPrize: 0,
+              distribution: []
+            },
+            raceResults: state.snapshot.raceResults ? [...state.snapshot.raceResults] : undefined
           }
         : null,
       lobby: {
         players: state.lobby.players.map((player) => ({ ...player })),
         selections: { ...state.lobby.selections }
       },
-      self: state.self ? { ...state.self } : null,
-      toast: state.toast ? { ...state.toast } : null
+      self: state.self ? { ...state.self, wallet: { ...state.self.wallet } } : null,
+      toast: state.toast ? { ...state.toast } : null,
+      playerResult: state.playerResult ? { ...state.playerResult } : null
     };
   }
 
@@ -112,12 +190,21 @@ export function createStore(): Store {
       emit();
     },
     updateFromServer(snapshot, lobby) {
+      const previousPhase = state.snapshot?.phase;
       state.snapshot = snapshot;
       state.lobby = lobby;
+
+      // Reset tap count when entering LOBBY phase
+      if (previousPhase !== 'LOBBY' && snapshot.phase === 'LOBBY') {
+        state.myTapCount = 0;
+        state.playerResult = null;
+      }
+
       if (state.self) {
         const selfPlayer = lobby.players.find((p) => p.id === state.self?.id);
         if (selfPlayer) {
           state.self.selectionId = selfPlayer.selectionId;
+          state.self.wallet = selfPlayer.wallet;
         }
       }
       if (!state.selectedLizardId && snapshot.lizards.length > 0) {
@@ -152,6 +239,24 @@ export function createStore(): Store {
     },
     clearToast() {
       state.toast = null;
+      emit();
+    },
+    incrementMyTaps() {
+      state.myTapCount += 1;
+      emit();
+    },
+    resetMyTaps() {
+      state.myTapCount = 0;
+      emit();
+    },
+    updateWallet(wallet) {
+      if (state.self) {
+        state.self.wallet = wallet;
+        emit();
+      }
+    },
+    setPlayerResult(result) {
+      state.playerResult = result;
       emit();
     }
   };

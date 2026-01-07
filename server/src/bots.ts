@@ -55,7 +55,7 @@ export class BotController {
 
   private pickLizard(lizardIds: string[]): string {
     if (!lizardIds.length) {
-      return 'lizard-1';
+      return 'gecko-1';
     }
     const index = Math.floor(Math.random() * lizardIds.length);
     return lizardIds[index];
