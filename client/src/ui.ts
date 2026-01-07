@@ -580,21 +580,12 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     view.append(geckoInfo);
   }
 
-  // Tap Counter Container
-  const counterContainer = document.createElement('div');
-  counterContainer.className = 'tap-counter-container';
-  counterContainer.id = 'tap-counter-container';
-
-  const counterLabel = document.createElement('div');
-  counterLabel.className = 'tap-counter-label';
-  counterLabel.textContent = 'Your Taps';
-
-  const counter = document.createElement('div');
-  counter.className = 'tap-counter';
-  counter.id = 'tap-counter';
-  counter.textContent = String(state.myTapCount);
-
-  counterContainer.append(counterLabel, counter);
+  // 버튼 위 카운트다운 (5, 4, 3, 2, 1)
+  const countdownBig = document.createElement('div');
+  countdownBig.className = 'tap-countdown-big';
+  countdownBig.id = 'tap-phase-countdown';
+  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
+  countdownBig.textContent = String(Math.ceil(remaining / 1000));
 
   // Tap Button
   const buttonWrapper = document.createElement('div');
@@ -609,6 +600,24 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   buttonImg.src = TAP_BUTTON_IMG;
   buttonImg.alt = 'TAP!';
   tapButton.append(buttonImg);
+
+  buttonWrapper.append(tapButton);
+
+  // 버튼 아래 탭 카운터
+  const counterContainer = document.createElement('div');
+  counterContainer.className = 'tap-counter-container';
+  counterContainer.id = 'tap-counter-container';
+
+  const counterLabel = document.createElement('div');
+  counterLabel.className = 'tap-counter-label';
+  counterLabel.textContent = 'Your Taps';
+
+  const counter = document.createElement('div');
+  counter.className = 'tap-counter';
+  counter.id = 'tap-counter';
+  counter.textContent = String(state.myTapCount);
+
+  counterContainer.append(counterLabel, counter);
 
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
@@ -637,16 +646,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     triggerTapEffect();
   }, { passive: false });
 
-  buttonWrapper.append(tapButton);
-
-  // Countdown
-  const countdownText = document.createElement('div');
-  countdownText.className = 'tap-countdown';
-  countdownText.id = 'tap-phase-countdown';
-  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
-  countdownText.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
-
-  view.append(counterContainer, buttonWrapper, countdownText);
+  view.append(countdownBig, buttonWrapper, counterContainer);
   container.append(view);
 }
 
@@ -659,7 +659,7 @@ function updateTapView(container: HTMLElement, state: ClientState, _actions: Api
   const countdown = container.querySelector('#tap-phase-countdown');
   if (countdown && state.snapshot) {
     const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
-    countdown.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
+    countdown.textContent = String(Math.ceil(remaining / 1000));
   }
 }
 
