@@ -645,7 +645,7 @@ body {
   z-index: 0;
 }
 
-/* 트랙 컨테이너 - 카메라가 따라가는 대상 */
+/* 트랙 컨테이너 */
 .race-track {
   display: flex;
   flex-direction: row;
@@ -653,14 +653,9 @@ body {
   position: absolute;
   left: 8px;
   right: 8px;
-  /* 트랙 높이를 뷰포트의 200%로 설정 (스크롤 공간 확보) */
-  height: 200%;
-  bottom: 0;
-  padding-top: 60px;
-  padding-bottom: 20px;
+  top: 60px;
+  bottom: 20px;
   z-index: 2;
-  /* 카메라 이동 애니메이션 */
-  transition: transform 0.3s ease-out;
 }
 
 .race-lane {

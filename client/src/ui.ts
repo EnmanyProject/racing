@@ -758,31 +758,43 @@ function updateTapView(container: HTMLElement, state: ClientState, _actions: Api
     counter.textContent = String(state.myTapCount);
   }
 
-  const countdown = container.querySelector('#tap-phase-countdown');
+  const countdown = container.querySelector('#tap-phase-countdown') as HTMLElement | null;
   const tapButton = container.querySelector('#tap-button') as HTMLButtonElement | null;
 
   if (countdown && state.snapshot) {
     const elapsed = Date.now() - state.snapshot.phaseStartedAt;
     const isCountdownPhase = elapsed < TAP_COUNTDOWN_MS;
+    const wasCountdownPhase = countdown.classList.contains('countdown-phase');
 
-    // 클래스 업데이트
-    countdown.classList.toggle('countdown-phase', isCountdownPhase);
-    countdown.classList.toggle('tap-phase', !isCountdownPhase);
+    // 상태가 변경될 때만 클래스 업데이트 (점멸 방지)
+    if (isCountdownPhase !== wasCountdownPhase) {
+      countdown.classList.toggle('countdown-phase', isCountdownPhase);
+      countdown.classList.toggle('tap-phase', !isCountdownPhase);
+    }
 
     if (isCountdownPhase) {
       // 3, 2, 1 카운트다운
       const countdownRemaining = TAP_COUNTDOWN_MS - elapsed;
-      countdown.textContent = String(Math.ceil(countdownRemaining / 1000));
+      const newValue = String(Math.ceil(countdownRemaining / 1000));
+      if (countdown.textContent !== newValue) {
+        countdown.textContent = newValue;
+      }
     } else {
       // 1, 2, 3, 4, 5 카운트업
       const tapElapsed = elapsed - TAP_COUNTDOWN_MS;
-      countdown.textContent = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
+      const newValue = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
+      if (countdown.textContent !== newValue) {
+        countdown.textContent = newValue;
+      }
     }
 
     // 탭 버튼 활성화/비활성화
     if (tapButton) {
       const selectedGecko = state.snapshot.lizards.find((lz) => lz.id === state.selectedLizardId);
-      tapButton.disabled = !selectedGecko || isCountdownPhase;
+      const shouldBeDisabled = !selectedGecko || isCountdownPhase;
+      if (tapButton.disabled !== shouldBeDisabled) {
+        tapButton.disabled = shouldBeDisabled;
+      }
     }
   }
 }
@@ -845,6 +857,9 @@ function renderRaceView(
     ? activeLizards.filter((lz) => leadingLizard.progress - lz.progress <= closeRaceThreshold)
     : [];
 
+  // 선두 progress
+  const leaderProgress = leadingLizard?.progress ?? 0;
+
   // Create lanes for each gecko
   state.snapshot?.lizards.forEach((lizard, index) => {
     const lane = document.createElement('div');
@@ -853,7 +868,8 @@ function renderRaceView(
     const runner = document.createElement('div');
     runner.className = 'race-runner';
     runner.dataset.lizardId = lizard.id;
-    runner.style.bottom = `${lizard.progress * 100}%`;
+    const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress);
+    runner.style.bottom = `${screenPos}%`;
 
     // 1등 도마뱀 하이라이트
     if (leadingLizard && lizard.id === leadingLizard.id && !lizard.finishTime) {
@@ -916,10 +932,6 @@ function renderRaceView(
     minimap.append(minimapGecko);
   });
 
-  // 카메라 위치 초기 설정
-  const leaderProgress = leadingLizard?.progress ?? 0;
-  updateCameraPosition(track, leaderProgress);
-
   cameraViewport.append(track);
 
   // Slow-mo indicator
@@ -933,29 +945,37 @@ function renderRaceView(
   container.append(view);
 }
 
-// 카메라 위치 업데이트 함수
-function updateCameraPosition(track: HTMLElement, leaderProgress: number): void {
-  // 선두가 화면 하단 30% 지점에 위치하도록 카메라 이동
-  // progress 0 = 시작(하단), 1 = 결승선(상단)
-  // 트랙 높이는 뷰포트의 200%, runner는 bottom %로 위치
+// 도마뱀 위치 계산 함수 (카메라 추적 적용)
+function calculateRunnerPosition(
+  lizardProgress: number,
+  leaderProgress: number
+): number {
+  // 선두가 화면 상단 70% 위치에 고정되도록 계산
+  // progress 0 = 시작, 1 = 결승
+  const leaderScreenPosition = 70;  // 선두가 위치할 화면 % (하단 기준)
+  const minScreenPosition = 5;      // 최소 화면 위치 (결승선 근처)
 
-  // 선두가 30% 이상 진행하면 카메라가 따라가기 시작
-  const startFollow = 0.3;
-
-  if (leaderProgress <= startFollow) {
-    track.style.transform = 'translateY(0)';
-    return;
+  // 선두가 30% 미만일 때는 그대로 표시
+  if (leaderProgress < 0.3) {
+    return Math.min(lizardProgress * 100, 95);
   }
 
-  // 선두를 화면 하단 30% 지점에 유지
-  // 트랙 200% 기준으로, 선두가 화면 밖으로 나가지 않도록 계산
-  // leaderProgress가 1일 때 트랙을 최대 50% 위로 이동 (200% 트랙의 절반)
-  const maxOffset = 50;  // 트랙 높이의 50% = 뷰포트 100%
-  const progressRange = 1 - startFollow;  // 0.7
-  const normalizedProgress = (leaderProgress - startFollow) / progressRange;
-  const cameraOffset = normalizedProgress * maxOffset;
+  // 선두와의 거리 계산
+  const distanceFromLeader = leaderProgress - lizardProgress;
 
-  track.style.transform = `translateY(-${cameraOffset}%)`;
+  // 선두 기준 상대 위치 계산
+  // 선두는 70% 위치, 뒤처진 도마뱀은 그보다 아래
+  let screenPosition = leaderScreenPosition - (distanceFromLeader * 100);
+
+  // 선두가 결승에 가까워지면 화면 위치 조정
+  if (leaderProgress > 0.8) {
+    const finishAdjust = (leaderProgress - 0.8) / 0.2;  // 0~1
+    const adjustedLeaderPos = leaderScreenPosition + (95 - leaderScreenPosition) * finishAdjust;
+    screenPosition = adjustedLeaderPos - (distanceFromLeader * 100);
+  }
+
+  // 화면 범위 내로 제한
+  return Math.max(minScreenPosition, Math.min(screenPosition, 95));
 }
 
 function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement>): void {
@@ -986,11 +1006,8 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
     ? activeLizards.filter((lz) => leadingLizard.progress - lz.progress <= closeRaceThreshold)
     : [];
 
-  // 카메라 위치 업데이트 (선두 따라가기)
-  const track = document.getElementById('race-track');
-  if (track && leadingLizard) {
-    updateCameraPosition(track, leadingLizard.progress);
-  }
+  // 선두 progress 계산
+  const leaderProgress = leadingLizard?.progress ?? 0;
 
   // 미니맵 업데이트
   const minimap = document.getElementById('race-minimap');
@@ -998,9 +1015,9 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
   state.snapshot?.lizards.forEach((lizard) => {
     const runner = raceRunners.get(lizard.id);
     if (runner) {
-      // Calculate position from bottom (0% = start, 100% = finish)
-      const progress = Math.min(lizard.progress * 100, 95);
-      runner.style.bottom = `${progress}%`;
+      // 카메라 추적 적용 위치 계산
+      const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress);
+      runner.style.bottom = `${screenPos}%`;
 
       // 1등 하이라이트 업데이트 (카메라 워킹 효과)
       if (leadingLizard && lizard.id === leadingLizard.id && !lizard.finishTime) {
