@@ -249,7 +249,7 @@ export function createApi(store: Store): ApiActions {
 
   return {
     selectLizard(id: string) {
-      store.setSelection(id);
+      // 서버에만 알림 - 클라이언트 상태는 selectAndStartTap에서 처리
       socket.emit('player:select', { lizardId: id });
     },
     sendBoost(id: string) {

@@ -136,6 +136,7 @@ export interface Store {
   setPlayerResult(result: PlayerRaceResult | null): void;
   // 개인 탭 상태 관리
   startPersonalTap(): void;
+  selectAndStartTap(lizardId: string): void;
   setPersonalTapPhase(phase: PersonalTapPhase): void;
   resetPersonalTap(): void;
 }
@@ -282,6 +283,13 @@ export function createStore(): Store {
       emit();
     },
     startPersonalTap() {
+      state.personalTapPhase = 'countdown';
+      state.personalTapStartTime = Date.now();
+      emit();
+    },
+    // 게코 선택과 탭 시작을 하나의 액션으로 (emit 1회만)
+    selectAndStartTap(lizardId: string) {
+      state.selectedLizardId = lizardId;
       state.personalTapPhase = 'countdown';
       state.personalTapStartTime = Date.now();
       emit();

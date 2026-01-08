@@ -545,9 +545,9 @@ function renderLobbyView(
 
   state.snapshot?.lizards.forEach((lizard) => {
     const cardElements = createGeckoCard(lizard, state, () => {
-      // 게코 선택 시 서버에 알리고 개인 탭 시스템 시작
-      actions.selectLizard(lizard.id);
-      store.startPersonalTap();
+      // 게코 선택과 개인 탭 시스템을 하나의 액션으로 (emit 1회)
+      actions.selectLizard(lizard.id);  // 서버에 알림
+      store.selectAndStartTap(lizard.id);  // 클라이언트 상태 업데이트 (1회 emit)
     });
     geckoCards.set(lizard.id, cardElements);
     grid.append(cardElements.card);
