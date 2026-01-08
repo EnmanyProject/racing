@@ -388,7 +388,7 @@ function renderMainContent(
       }
       break;
     case 'CLICK_WINDOW':
-      renderTapView(elements.mainContent, state, actions);
+      renderTapView(elements.mainContent, state, actions, store);
       break;
     case 'RACING':
       renderRaceView(elements.mainContent, state, animator, raceRunners);
@@ -642,10 +642,11 @@ function updateTapReadyView(container: HTMLElement, state: ClientState): void {
 // ========================
 const TAP_COUNTDOWN_MS = 3_000;  // 3초 카운트다운
 
-function renderTapView(container: HTMLElement, state: ClientState, actions: ApiActions): void {
+function renderTapView(container: HTMLElement, state: ClientState, actions: ApiActions, store: Store): void {
   const view = document.createElement('div');
   view.className = 'tap-view';
 
+  // 초기 렌더링용 선택된 게코
   const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
 
   // Selected Gecko Info
@@ -718,9 +719,15 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
 
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
-    if (!selectedGecko) return;
+    // 최신 상태에서 선택된 게코 가져오기 (closure 문제 해결)
+    const currentState = store.getState();
+    const currentGecko = currentState.snapshot?.lizards.find(
+      (lz) => lz.id === currentState.selectedLizardId
+    );
+
+    if (!currentGecko) return;
     // 카운트다운 체크는 버튼 disabled 상태와 서버에서 처리
-    actions.sendBoost(selectedGecko.id);
+    actions.sendBoost(currentGecko.id);
 
     // 즉시 카운터 업데이트 (서버 응답 전)
     localTapCount++;
