@@ -719,11 +719,7 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
     if (!selectedGecko) return;
-
-    // 카운트다운 중이면 탭 무시
-    const currentElapsed = Date.now() - (state.snapshot?.phaseStartedAt ?? Date.now());
-    if (currentElapsed < TAP_COUNTDOWN_MS) return;
-
+    // 카운트다운 체크는 버튼 disabled 상태와 서버에서 처리
     actions.sendBoost(selectedGecko.id);
 
     // 즉시 카운터 업데이트 (서버 응답 전)
