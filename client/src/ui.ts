@@ -319,14 +319,42 @@ function updateToast(elements: UIElements, state: ClientState): void {
 }
 
 function updateCountdown(elements: UIElements, state: ClientState): void {
-  if (!state.snapshot || state.snapshot.phase !== 'CLICK_WINDOW') {
+  if (!state.snapshot) {
     elements.countdownOverlay.container.dataset.visible = 'false';
     return;
   }
 
-  const seconds = Math.max(0, Math.ceil((state.snapshot.phaseEndsAt - Date.now()) / 1000));
-  elements.countdownOverlay.container.dataset.visible = 'true';
-  elements.countdownOverlay.digit.textContent = seconds > 0 ? String(seconds) : 'GO!';
+  const { phase, racingElapsed } = state.snapshot;
+
+  // CLICK_WINDOW 페이즈: 남은 시간 카운트다운
+  if (phase === 'CLICK_WINDOW') {
+    const seconds = Math.max(0, Math.ceil((state.snapshot.phaseEndsAt - Date.now()) / 1000));
+    elements.countdownOverlay.container.dataset.visible = 'true';
+    elements.countdownOverlay.digit.textContent = seconds > 0 ? String(seconds) : 'GO!';
+    return;
+  }
+
+  // RACING 페이즈 시작: 3, 2, 1, GO! 카운트다운
+  if (phase === 'RACING' && racingElapsed !== undefined) {
+    const countdownDuration = 3000; // 3초 카운트다운
+
+    if (racingElapsed < countdownDuration + 500) { // +500ms for "GO!" display
+      elements.countdownOverlay.container.dataset.visible = 'true';
+
+      if (racingElapsed < 1000) {
+        elements.countdownOverlay.digit.textContent = '3';
+      } else if (racingElapsed < 2000) {
+        elements.countdownOverlay.digit.textContent = '2';
+      } else if (racingElapsed < 3000) {
+        elements.countdownOverlay.digit.textContent = '1';
+      } else {
+        elements.countdownOverlay.digit.textContent = 'GO!';
+      }
+      return;
+    }
+  }
+
+  elements.countdownOverlay.container.dataset.visible = 'false';
 }
 
 function renderMainContent(

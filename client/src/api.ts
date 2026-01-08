@@ -5,10 +5,39 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? inferSocketUrl();
 const LOCAL_STORAGE_KEY = 'gecko-sprint-player-id';
 
 let audioCtx: AudioContext | null = null;
+let audioInitialized = false;
 
 function inferSocketUrl(): string {
   const { protocol, hostname } = window.location;
   return `${protocol}//${hostname}:4000`;
+}
+
+// 사용자 제스처 후 AudioContext 초기화
+function initAudioOnGesture(): void {
+  if (audioInitialized) return;
+
+  const initAudio = () => {
+    if (audioInitialized) return;
+    audioInitialized = true;
+
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+
+    audioCtx = new Ctx();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+
+    // 이벤트 리스너 제거
+    document.removeEventListener('click', initAudio);
+    document.removeEventListener('touchstart', initAudio);
+    document.removeEventListener('keydown', initAudio);
+  };
+
+  // 사용자 제스처 이벤트에 리스너 등록
+  document.addEventListener('click', initAudio, { once: true });
+  document.addEventListener('touchstart', initAudio, { once: true });
+  document.addEventListener('keydown', initAudio, { once: true });
 }
 
 function ensureContext(): AudioContext | null {
@@ -19,10 +48,9 @@ function ensureContext(): AudioContext | null {
     }
     return audioCtx;
   }
-  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctx) return null;
-  audioCtx = new Ctx();
-  return audioCtx;
+  // AudioContext가 아직 초기화되지 않은 경우 null 반환
+  // 사용자 제스처 후 자동으로 초기화됨
+  return null;
 }
 
 function playClick() {
@@ -92,6 +120,11 @@ export interface ApiActions {
 }
 
 export function createApi(store: Store): ApiActions {
+  // 사용자 제스처 후 AudioContext 초기화 설정
+  if (typeof window !== 'undefined') {
+    initAudioOnGesture();
+  }
+
   const storedId = typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_STORAGE_KEY) ?? undefined : undefined;
   let lastPhase: string | null = null;
 

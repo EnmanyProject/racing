@@ -184,8 +184,8 @@ export class GameLoop extends EventEmitter {
   }
 
   applyBoost(playerId: string, lizardId: string): BoostResult {
-    // LOBBY와 CLICK_WINDOW 둘 다 탭 허용
-    if (this.timing.phase !== 'LOBBY' && this.timing.phase !== 'CLICK_WINDOW') {
+    // CLICK_WINDOW(5초)만 탭 허용
+    if (this.timing.phase !== 'CLICK_WINDOW') {
       return { applied: false, reason: 'invalid_phase' };
     }
 
@@ -294,14 +294,24 @@ export class GameLoop extends EventEmitter {
       this.positions.set(lizard.id, 0);
     });
 
-    this.lastTick = Date.now();
-    this.timing.startedAt = this.lastTick;
-    this.timing.endsAt = this.timing.startedAt + (this.timeline.find((p) => p.name === 'RACING')?.durationMs ?? 12_000);
+    // 타이밍 설정 (카운트다운 3초 포함)
+    const countdownMs = 3000;
+    const now = Date.now();
+    this.timing.startedAt = now;
+    this.timing.endsAt = now + countdownMs + (this.timeline.find((p) => p.name === 'RACING')?.durationMs ?? 12_000);
 
     if (this.raceInterval) {
       clearInterval(this.raceInterval);
     }
-    this.raceInterval = setInterval(() => this.tickRace(), this.config.tickIntervalMs);
+
+    // 3초 카운트다운 후 레이스 시작
+    setTimeout(() => {
+      this.lastTick = Date.now();
+      this.raceInterval = setInterval(() => this.tickRace(), this.config.tickIntervalMs);
+    }, countdownMs);
+
+    // 카운트다운 동안 상태 업데이트
+    this.emitState();
   }
 
   private prepareLizards(): void {
