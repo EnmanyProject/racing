@@ -16,7 +16,10 @@
       "Bash(python:*)",
       "Bash(git pull:*)",
       "Skill(webapp-testing)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)"
     ]
   }
 }

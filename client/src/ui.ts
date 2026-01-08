@@ -1,6 +1,10 @@
 import type { ApiActions } from './api';
 import type { Animator } from './animation';
-import type { ClientState, LizardView, Store, Phase } from './store';
+import type { ClientState, LizardView, Store, Phase, PersonalTapPhase } from './store';
+
+// 개인 탭 타이밍 상수
+const PERSONAL_COUNTDOWN_MS = 3000;  // 3초 카운트다운
+const PERSONAL_TAP_DURATION_MS = 5000;  // 5초 탭 시간
 
 // Asset paths
 const COIN_ICON = '/assets/Coin_New_ui.png';
@@ -45,12 +49,24 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
 
   let currentPhase: Phase | null = null;
   let currentSelectedId: string | null = null;
+  let currentPersonalTapPhase: PersonalTapPhase | null = null;
 
-  // 로컬 타이머 - 1초마다 카운트다운 업데이트
+  // 로컬 타이머 - 100ms마다 업데이트
   setInterval(() => {
     const state = store.getState();
     updatePhaseBar(elements, state);
     updateLocalCountdowns(elements, state);
+
+    // 개인 탭 페이즈 자동 전환
+    if (state.personalTapPhase !== 'idle' && state.personalTapStartTime) {
+      const elapsed = Date.now() - state.personalTapStartTime;
+
+      if (state.personalTapPhase === 'countdown' && elapsed >= PERSONAL_COUNTDOWN_MS) {
+        store.setPersonalTapPhase('tapping');
+      } else if (state.personalTapPhase === 'tapping' && elapsed >= PERSONAL_COUNTDOWN_MS + PERSONAL_TAP_DURATION_MS) {
+        store.setPersonalTapPhase('waiting');
+      }
+    }
   }, 100);
 
   store.subscribe((state) => {
@@ -62,13 +78,17 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
 
     const newPhase = state.snapshot?.phase ?? null;
     const newSelectedId = state.selectedLizardId;
+    const newPersonalTapPhase = state.personalTapPhase;
 
-    // Re-render main content when phase changes OR selection changes during LOBBY
+    // Re-render main content when phase changes, selection changes, or personal tap phase changes
+    const phaseChanged = newPhase !== currentPhase;
     const selectionChanged = newPhase === 'LOBBY' && newSelectedId !== currentSelectedId;
+    const personalTapPhaseChanged = newPersonalTapPhase !== currentPersonalTapPhase;
 
-    if (newPhase !== currentPhase || selectionChanged) {
+    if (phaseChanged || selectionChanged || personalTapPhaseChanged) {
       currentPhase = newPhase;
       currentSelectedId = newSelectedId;
+      currentPersonalTapPhase = newPersonalTapPhase;
       geckoCards.clear();
       raceRunners.clear();
       renderMainContent(elements, state, actions, animator, geckoCards, raceRunners, store);
@@ -373,15 +393,27 @@ function renderMainContent(
 
   switch (state.snapshot.phase) {
     case 'LOBBY':
-      // 도마뱀 선택 시 탭 대기 화면으로 전환
-      if (state.selectedLizardId) {
-        renderTapReadyView(elements.mainContent, state, actions, store);
+      // 개인 탭 시스템 흐름
+      if (!state.selectedLizardId) {
+        // 1. 게코 미선택 → 선택 화면
+        renderLobbyView(elements.mainContent, state, actions, geckoCards, store);
+      } else if (state.personalTapPhase === 'countdown') {
+        // 2. 3, 2, 1 카운트다운
+        renderPersonalCountdownView(elements.mainContent, state, store);
+      } else if (state.personalTapPhase === 'tapping') {
+        // 3. 탭 시간 (1, 2, 3, 4, 5 카운트업)
+        renderPersonalTapView(elements.mainContent, state, actions, store);
+      } else if (state.personalTapPhase === 'waiting') {
+        // 4. 레이스 대기 화면
+        renderWaitingView(elements.mainContent, state, store);
       } else {
-        renderLobbyView(elements.mainContent, state, actions, geckoCards);
+        // idle 상태인데 선택된 경우 (fallback)
+        renderLobbyView(elements.mainContent, state, actions, geckoCards, store);
       }
       break;
     case 'CLICK_WINDOW':
-      renderTapView(elements.mainContent, state, actions, store);
+      // 서버의 CLICK_WINDOW 페이즈 - 개인 탭 완료 후 대기 화면
+      renderWaitingView(elements.mainContent, state, store);
       break;
     case 'RACING':
       renderRaceView(elements.mainContent, state, animator, raceRunners);
@@ -395,7 +427,7 @@ function renderMainContent(
 function updateMainContent(
   elements: UIElements,
   state: ClientState,
-  actions: ApiActions,
+  _actions: ApiActions,
   _animator: Animator,
   geckoCards: Map<string, GeckoCardElements>,
   raceRunners: Map<string, HTMLElement>
@@ -404,14 +436,18 @@ function updateMainContent(
 
   switch (state.snapshot.phase) {
     case 'LOBBY':
-      if (state.selectedLizardId) {
-        updateTapReadyView(elements.mainContent, state);
-      } else {
+      if (!state.selectedLizardId) {
         updateLobbyView(state, geckoCards);
+      } else if (state.personalTapPhase === 'countdown') {
+        updatePersonalCountdownView(elements.mainContent, state);
+      } else if (state.personalTapPhase === 'tapping') {
+        updatePersonalTapView(elements.mainContent, state);
+      } else if (state.personalTapPhase === 'waiting') {
+        updateWaitingView(elements.mainContent, state);
       }
       break;
     case 'CLICK_WINDOW':
-      updateTapView(elements.mainContent, state, actions);
+      updateWaitingView(elements.mainContent, state);
       break;
     case 'RACING':
       updateRaceView(state, raceRunners);
@@ -422,6 +458,48 @@ function updateMainContent(
   }
 }
 
+// Update functions for new views
+function updatePersonalCountdownView(container: HTMLElement, state: ClientState): void {
+  const countdownNum = container.querySelector('#personal-countdown-number');
+  if (countdownNum && state.personalTapStartTime) {
+    const elapsed = Date.now() - state.personalTapStartTime;
+    const remaining = Math.max(0, PERSONAL_COUNTDOWN_MS - elapsed);
+    const seconds = Math.ceil(remaining / 1000);
+    countdownNum.textContent = String(seconds || 1);
+  }
+}
+
+function updatePersonalTapView(container: HTMLElement, state: ClientState): void {
+  const countupNum = container.querySelector('#personal-countup-number');
+  if (countupNum && state.personalTapStartTime) {
+    const elapsed = Date.now() - state.personalTapStartTime;
+    const tapElapsed = elapsed - PERSONAL_COUNTDOWN_MS;
+    const countupValue = Math.min(5, Math.floor(tapElapsed / 1000) + 1);
+    countupNum.textContent = String(countupValue);
+  }
+
+  const counter = container.querySelector('#tap-counter');
+  if (counter) {
+    const currentDisplayed = parseInt(counter.textContent || '0', 10);
+    if (state.myTapCount > currentDisplayed) {
+      counter.textContent = String(state.myTapCount);
+    }
+  }
+}
+
+function updateWaitingView(container: HTMLElement, state: ClientState): void {
+  const waitingTime = container.querySelector('#waiting-time');
+  if (waitingTime && state.snapshot) {
+    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
+    waitingTime.textContent = formatCountdown(remaining);
+  }
+
+  const tapCount = container.querySelector('#waiting-tap-count');
+  if (tapCount) {
+    tapCount.textContent = String(state.myTapCount);
+  }
+}
+
 // ========================
 // LOBBY VIEW
 // ========================
@@ -429,7 +507,8 @@ function renderLobbyView(
   container: HTMLElement,
   state: ClientState,
   actions: ApiActions,
-  geckoCards: Map<string, GeckoCardElements>
+  geckoCards: Map<string, GeckoCardElements>,
+  store: Store
 ): void {
   const view = document.createElement('div');
   view.className = 'lobby-view';
@@ -442,7 +521,7 @@ function renderLobbyView(
   // Help text
   const help = document.createElement('p');
   help.className = 'lobby-help';
-  help.textContent = '도마뱀 선택 → 카운트다운 종료 → 탭해서 응원 → 레이스!';
+  help.textContent = '도마뱀 선택 → 3초 카운트다운 → 5초 탭 → 레이스 대기!';
 
   // Prize Pool Display
   const prizePool = document.createElement('div');
@@ -465,7 +544,11 @@ function renderLobbyView(
   grid.className = 'gecko-grid';
 
   state.snapshot?.lizards.forEach((lizard) => {
-    const cardElements = createGeckoCard(lizard, state, () => actions.selectLizard(lizard.id));
+    const cardElements = createGeckoCard(lizard, state, () => {
+      // 게코 선택 시 서버에 알리고 개인 탭 시스템 시작
+      actions.selectLizard(lizard.id);
+      store.startPersonalTap();
+    });
     geckoCards.set(lizard.id, cardElements);
     grid.append(cardElements.card);
   });
@@ -517,20 +600,17 @@ function updateLobbyView(state: ClientState, geckoCards: Map<string, GeckoCardEl
 }
 
 // ========================
-// TAP READY VIEW (Waiting for race after selecting gecko)
+// PERSONAL COUNTDOWN VIEW (3, 2, 1 카운트다운)
 // ========================
-function renderTapReadyView(
+function renderPersonalCountdownView(
   container: HTMLElement,
   state: ClientState,
-  actions: ApiActions,
-  store: Store
+  _store: Store
 ): void {
   const view = document.createElement('div');
-  view.className = 'tap-view';
+  view.className = 'personal-countdown-view';
 
   const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
-  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
-  const seconds = Math.ceil(remaining / 1000);
 
   // Selected Gecko Info
   if (selectedGecko) {
@@ -543,13 +623,72 @@ function renderTapReadyView(
     view.append(geckoInfo);
   }
 
-  // 경주 시작까지 남은 시간
-  const countdownBig = document.createElement('div');
-  countdownBig.className = 'tap-countdown-big';
-  countdownBig.id = 'tap-ready-countdown';
-  countdownBig.textContent = String(seconds);
+  // 준비 텍스트
+  const readyText = document.createElement('div');
+  readyText.className = 'ready-text';
+  readyText.textContent = '준비하세요!';
+  view.append(readyText);
 
-  // Tap Button (이제 활성화!)
+  // 카운트다운 숫자 (3, 2, 1)
+  const countdownNum = document.createElement('div');
+  countdownNum.className = 'countdown-number';
+  countdownNum.id = 'personal-countdown-number';
+
+  // 현재 카운트다운 값 계산
+  const elapsed = Date.now() - (state.personalTapStartTime ?? Date.now());
+  const remaining = Math.max(0, PERSONAL_COUNTDOWN_MS - elapsed);
+  const seconds = Math.ceil(remaining / 1000);
+  countdownNum.textContent = String(seconds || 1);
+
+  view.append(countdownNum);
+  container.append(view);
+}
+
+// ========================
+// PERSONAL TAP VIEW (1, 2, 3, 4, 5 카운트업 + 탭)
+// ========================
+function renderPersonalTapView(
+  container: HTMLElement,
+  state: ClientState,
+  actions: ApiActions,
+  store: Store
+): void {
+  const view = document.createElement('div');
+  view.className = 'tap-view personal-tap-view';
+
+  const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
+
+  // Selected Gecko Info
+  if (selectedGecko) {
+    const geckoInfo = document.createElement('div');
+    geckoInfo.className = 'selected-gecko-info';
+    geckoInfo.innerHTML = `
+      <img src="${selectedGecko.image}" alt="${selectedGecko.name}">
+      <span class="name">${selectedGecko.name}</span>
+    `;
+    view.append(geckoInfo);
+  }
+
+  // 카운트업 숫자 (1, 2, 3, 4, 5)
+  const countupNum = document.createElement('div');
+  countupNum.className = 'countup-number';
+  countupNum.id = 'personal-countup-number';
+
+  // 현재 카운트업 값 계산
+  const elapsed = Date.now() - (state.personalTapStartTime ?? Date.now());
+  const tapElapsed = elapsed - PERSONAL_COUNTDOWN_MS;
+  const countupValue = Math.min(5, Math.floor(tapElapsed / 1000) + 1);
+  countupNum.textContent = String(countupValue);
+
+  view.append(countupNum);
+
+  // TAP NOW! 텍스트
+  const tapNowText = document.createElement('div');
+  tapNowText.className = 'tap-now-text';
+  tapNowText.textContent = 'TAP NOW!';
+  view.append(tapNowText);
+
+  // Tap Button
   const buttonWrapper = document.createElement('div');
   buttonWrapper.className = 'tap-button-wrapper';
 
@@ -592,6 +731,10 @@ function renderTapReadyView(
     );
 
     if (!currentGecko) return;
+
+    // tapping 페이즈일 때만 탭 허용
+    if (currentState.personalTapPhase !== 'tapping') return;
+
     actions.sendBoost(currentGecko.id);
 
     // 즉시 카운터 업데이트 (서버 응답 전)
@@ -618,195 +761,69 @@ function renderTapReadyView(
     triggerTapEffect();
   }, { passive: false });
 
-  view.append(countdownBig, buttonWrapper, counterContainer);
+  view.append(buttonWrapper, counterContainer);
   container.append(view);
 }
 
-function updateTapReadyView(container: HTMLElement, state: ClientState): void {
-  const countdown = container.querySelector('#tap-ready-countdown');
-  if (countdown && state.snapshot) {
-    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
-    const seconds = Math.ceil(remaining / 1000);
-    countdown.textContent = String(seconds);
-  }
-
-  const counter = container.querySelector('#tap-counter');
-  if (counter) {
-    counter.textContent = String(state.myTapCount);
-  }
-}
-
 // ========================
-// TAP VIEW
+// WAITING VIEW (레이스 대기)
 // ========================
-const TAP_COUNTDOWN_MS = 3_000;  // 3초 카운트다운
-
-function renderTapView(container: HTMLElement, state: ClientState, actions: ApiActions, store: Store): void {
+function renderWaitingView(
+  container: HTMLElement,
+  state: ClientState,
+  _store: Store
+): void {
   const view = document.createElement('div');
-  view.className = 'tap-view';
+  view.className = 'waiting-view';
 
-  // 초기 렌더링용 선택된 게코
   const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
 
-  // Selected Gecko Info
+  // Selected Gecko Info with arrow
   if (selectedGecko) {
     const geckoInfo = document.createElement('div');
-    geckoInfo.className = 'selected-gecko-info';
+    geckoInfo.className = 'selected-gecko-info waiting';
     geckoInfo.innerHTML = `
+      <div class="my-gecko-arrow">▼</div>
       <img src="${selectedGecko.image}" alt="${selectedGecko.name}">
       <span class="name">${selectedGecko.name}</span>
     `;
     view.append(geckoInfo);
   }
 
-  // 카운트다운/카운트업 표시 (3,2,1 → 1,2,3,4,5)
-  const countdownBig = document.createElement('div');
-  countdownBig.className = 'tap-countdown-big';
-  countdownBig.id = 'tap-phase-countdown';
+  // 탭 완료 표시
+  const completedText = document.createElement('div');
+  completedText.className = 'tap-completed-text';
+  completedText.textContent = '탭 완료!';
+  view.append(completedText);
 
-  // 초기 상태 계산
-  const elapsed = Date.now() - (state.snapshot?.phaseStartedAt ?? Date.now());
-  const isCountdownPhase = elapsed < TAP_COUNTDOWN_MS;
+  // 내 탭 수 표시
+  const myTapsDisplay = document.createElement('div');
+  myTapsDisplay.className = 'my-taps-display';
+  myTapsDisplay.innerHTML = `
+    <span class="label">내 탭 수:</span>
+    <span class="value" id="waiting-tap-count">${state.myTapCount}</span>
+  `;
+  view.append(myTapsDisplay);
 
-  if (isCountdownPhase) {
-    // 3, 2, 1 카운트다운
-    const countdownRemaining = TAP_COUNTDOWN_MS - elapsed;
-    countdownBig.textContent = String(Math.ceil(countdownRemaining / 1000));
-    countdownBig.classList.add('countdown-phase');
-  } else {
-    // 1, 2, 3, 4, 5 카운트업
-    const tapElapsed = elapsed - TAP_COUNTDOWN_MS;
-    countdownBig.textContent = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
-    countdownBig.classList.add('tap-phase');
-  }
+  // 레이스 시작까지 남은 시간
+  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
+  const countdown = formatCountdown(remaining);
 
-  // Tap Button
-  const buttonWrapper = document.createElement('div');
-  buttonWrapper.className = 'tap-button-wrapper';
+  const waitingInfo = document.createElement('div');
+  waitingInfo.className = 'waiting-countdown';
+  waitingInfo.innerHTML = `
+    <span class="label">레이스 시작까지</span>
+    <span class="time" id="waiting-time">${countdown}</span>
+  `;
+  view.append(waitingInfo);
 
-  const tapButton = document.createElement('button');
-  tapButton.className = 'tap-button';
-  tapButton.id = 'tap-button';
-  // 게코 미선택 또는 카운트다운 중이면 비활성화
-  tapButton.disabled = !selectedGecko || isCountdownPhase;
+  // 다른 플레이어 대기 중 메시지
+  const waitingMessage = document.createElement('div');
+  waitingMessage.className = 'waiting-message';
+  waitingMessage.textContent = '다른 플레이어들을 기다리는 중...';
+  view.append(waitingMessage);
 
-  const buttonImg = document.createElement('img');
-  buttonImg.src = TAP_BUTTON_IMG;
-  buttonImg.alt = 'TAP!';
-  tapButton.append(buttonImg);
-
-  buttonWrapper.append(tapButton);
-
-  // 버튼 아래 탭 카운터
-  const counterContainer = document.createElement('div');
-  counterContainer.className = 'tap-counter-container';
-  counterContainer.id = 'tap-counter-container';
-
-  const counterLabel = document.createElement('div');
-  counterLabel.className = 'tap-counter-label';
-  counterLabel.textContent = 'Your Taps';
-
-  const counter = document.createElement('div');
-  counter.className = 'tap-counter';
-  counter.id = 'tap-counter';
-  counter.textContent = String(state.myTapCount);
-
-  counterContainer.append(counterLabel, counter);
-
-  // 로컬 탭 카운트 (즉시 피드백용)
-  let localTapCount = state.myTapCount;
-
-  // 탭 애니메이션 효과
-  const triggerTapEffect = () => {
-    // 최신 상태에서 선택된 게코 가져오기 (closure 문제 해결)
-    const currentState = store.getState();
-    const currentGecko = currentState.snapshot?.lizards.find(
-      (lz) => lz.id === currentState.selectedLizardId
-    );
-
-    if (!currentGecko) return;
-    // 카운트다운 체크는 버튼 disabled 상태와 서버에서 처리
-    actions.sendBoost(currentGecko.id);
-
-    // 즉시 카운터 업데이트 (서버 응답 전)
-    localTapCount++;
-    counter.textContent = String(localTapCount);
-
-    // 카운터 펄스 애니메이션
-    counter.classList.remove('pulse');
-    void counter.offsetWidth; // reflow 강제
-    counter.classList.add('pulse');
-
-    // +1 플로팅 텍스트
-    const floatText = document.createElement('div');
-    floatText.className = 'tap-float';
-    floatText.textContent = '+1';
-    floatText.style.left = `${Math.random() * 40 + 30}%`;
-    counterContainer.append(floatText);
-    setTimeout(() => floatText.remove(), 600);
-  };
-
-  tapButton.addEventListener('click', triggerTapEffect);
-
-  // Support touch events for faster response
-  tapButton.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    triggerTapEffect();
-  }, { passive: false });
-
-  view.append(countdownBig, buttonWrapper, counterContainer);
   container.append(view);
-}
-
-function updateTapView(container: HTMLElement, state: ClientState, _actions: ApiActions): void {
-  const counter = container.querySelector('#tap-counter');
-  if (counter) {
-    // 서버에서 확인된 탭 수가 현재 표시된 수보다 크면 업데이트
-    const currentDisplayed = parseInt(counter.textContent || '0', 10);
-    if (state.myTapCount > currentDisplayed) {
-      counter.textContent = String(state.myTapCount);
-    }
-  }
-
-  const countdown = container.querySelector('#tap-phase-countdown') as HTMLElement | null;
-  const tapButton = container.querySelector('#tap-button') as HTMLButtonElement | null;
-
-  if (countdown && state.snapshot) {
-    const elapsed = Date.now() - state.snapshot.phaseStartedAt;
-    const isCountdownPhase = elapsed < TAP_COUNTDOWN_MS;
-    const wasCountdownPhase = countdown.classList.contains('countdown-phase');
-
-    // 상태가 변경될 때만 클래스 업데이트 (점멸 방지)
-    if (isCountdownPhase !== wasCountdownPhase) {
-      countdown.classList.toggle('countdown-phase', isCountdownPhase);
-      countdown.classList.toggle('tap-phase', !isCountdownPhase);
-    }
-
-    if (isCountdownPhase) {
-      // 3, 2, 1 카운트다운
-      const countdownRemaining = TAP_COUNTDOWN_MS - elapsed;
-      const newValue = String(Math.ceil(countdownRemaining / 1000));
-      if (countdown.textContent !== newValue) {
-        countdown.textContent = newValue;
-      }
-    } else {
-      // 1, 2, 3, 4, 5 카운트업
-      const tapElapsed = elapsed - TAP_COUNTDOWN_MS;
-      const newValue = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
-      if (countdown.textContent !== newValue) {
-        countdown.textContent = newValue;
-      }
-    }
-
-    // 탭 버튼 활성화/비활성화
-    if (tapButton) {
-      const selectedGecko = state.snapshot.lizards.find((lz) => lz.id === state.selectedLizardId);
-      const shouldBeDisabled = !selectedGecko || isCountdownPhase;
-      if (tapButton.disabled !== shouldBeDisabled) {
-        tapButton.disabled = shouldBeDisabled;
-      }
-    }
-  }
 }
 
 // ========================

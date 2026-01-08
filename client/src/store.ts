@@ -1,5 +1,6 @@
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 export type Phase = 'LOBBY' | 'CLICK_WINDOW' | 'RACING' | 'RESULTS';
+export type PersonalTapPhase = 'idle' | 'countdown' | 'tapping' | 'waiting';
 
 export interface PlayerWallet {
   coins: number;
@@ -111,6 +112,9 @@ export interface ClientState {
   myTapCount: number;
   playerResult: PlayerRaceResult | null;
   showInviteModal: boolean;
+  // 개인 탭 상태 (LOBBY에서 게코 선택 후 개인 탭 윈도우)
+  personalTapPhase: PersonalTapPhase;
+  personalTapStartTime: number | null;
 }
 
 export type Listener = (state: ClientState) => void;
@@ -130,6 +134,10 @@ export interface Store {
   updateWallet(wallet: PlayerWallet): void;
   setShowInviteModal(show: boolean): void;
   setPlayerResult(result: PlayerRaceResult | null): void;
+  // 개인 탭 상태 관리
+  startPersonalTap(): void;
+  setPersonalTapPhase(phase: PersonalTapPhase): void;
+  resetPersonalTap(): void;
 }
 
 export function createStore(): Store {
@@ -142,7 +150,9 @@ export function createStore(): Store {
     toast: null,
     myTapCount: 0,
     playerResult: null,
-    showInviteModal: false
+    showInviteModal: false,
+    personalTapPhase: 'idle',
+    personalTapStartTime: null
   };
 
   const listeners = new Set<Listener>();
@@ -174,7 +184,9 @@ export function createStore(): Store {
       self: state.self ? { ...state.self, wallet: { ...state.self.wallet } } : null,
       toast: state.toast ? { ...state.toast } : null,
       playerResult: state.playerResult ? { ...state.playerResult } : null,
-      showInviteModal: state.showInviteModal
+      showInviteModal: state.showInviteModal,
+      personalTapPhase: state.personalTapPhase,
+      personalTapStartTime: state.personalTapStartTime
     };
   }
 
@@ -199,10 +211,13 @@ export function createStore(): Store {
       state.snapshot = snapshot;
       state.lobby = lobby;
 
-      // Reset tap count when entering LOBBY phase
+      // Reset tap count and personal tap state when entering LOBBY phase
       if (previousPhase !== 'LOBBY' && snapshot.phase === 'LOBBY') {
         state.myTapCount = 0;
         state.playerResult = null;
+        state.personalTapPhase = 'idle';
+        state.personalTapStartTime = null;
+        state.selectedLizardId = null;
       }
 
       if (state.self) {
@@ -264,6 +279,21 @@ export function createStore(): Store {
     },
     setPlayerResult(result) {
       state.playerResult = result;
+      emit();
+    },
+    startPersonalTap() {
+      state.personalTapPhase = 'countdown';
+      state.personalTapStartTime = Date.now();
+      emit();
+    },
+    setPersonalTapPhase(phase) {
+      state.personalTapPhase = phase;
+      emit();
+    },
+    resetPersonalTap() {
+      state.personalTapPhase = 'idle';
+      state.personalTapStartTime = null;
+      state.myTapCount = 0;
       emit();
     }
   };

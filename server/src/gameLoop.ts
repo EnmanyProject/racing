@@ -186,15 +186,10 @@ export class GameLoop extends EventEmitter {
   }
 
   applyBoost(playerId: string, lizardId: string): BoostResult {
-    // CLICK_WINDOW 페이즈만 허용
-    if (this.timing.phase !== 'CLICK_WINDOW') {
+    // LOBBY 또는 CLICK_WINDOW 페이즈에서 허용 (개인 탭 시스템)
+    // 클라이언트에서 개인 탭 윈도우 타이밍 관리
+    if (this.timing.phase !== 'LOBBY' && this.timing.phase !== 'CLICK_WINDOW') {
       return { applied: false, reason: 'invalid_phase' };
-    }
-
-    // 3초 카운트다운 후에만 탭 허용
-    const elapsed = Date.now() - this.timing.startedAt;
-    if (elapsed < TAP_COUNTDOWN_MS) {
-      return { applied: false, reason: 'countdown' };
     }
 
     const lizard = this.lizards.find((lz) => lz.id === lizardId);
