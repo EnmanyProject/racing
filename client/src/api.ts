@@ -187,6 +187,9 @@ export function createApi(store: Store): ApiActions {
       } else if (result.reason === 'no_selection') {
         tone = 'warning';
         message = '먼저 게코를 선택하세요.';
+      } else if (result.reason === 'countdown') {
+        tone = 'info';
+        message = '카운트다운 중입니다. 잠시 기다려주세요!';
       }
       store.showToast({ message, tone });
       window.setTimeout(() => store.clearToast(), 2300);

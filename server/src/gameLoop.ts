@@ -17,10 +17,12 @@ import type {
 
 const TIMELINE_DEFAULT: PhaseDefinition[] = [
   { name: 'LOBBY', durationMs: 120_000 },
-  { name: 'CLICK_WINDOW', durationMs: 5_000 },
+  { name: 'CLICK_WINDOW', durationMs: 8_000 },  // 3초 카운트다운 + 5초 탭
   { name: 'RACING', durationMs: 10_000 },
   { name: 'RESULTS', durationMs: 5_000 }
 ];
+
+const TAP_COUNTDOWN_MS = 3_000;  // 탭 전 카운트다운 시간
 
 export const DEFAULT_CONFIG: GameConfig = {
   phaseTimeline: TIMELINE_DEFAULT,
@@ -184,9 +186,15 @@ export class GameLoop extends EventEmitter {
   }
 
   applyBoost(playerId: string, lizardId: string): BoostResult {
-    // CLICK_WINDOW(5초)만 탭 허용
+    // CLICK_WINDOW 페이즈만 허용
     if (this.timing.phase !== 'CLICK_WINDOW') {
       return { applied: false, reason: 'invalid_phase' };
+    }
+
+    // 3초 카운트다운 후에만 탭 허용
+    const elapsed = Date.now() - this.timing.startedAt;
+    if (elapsed < TAP_COUNTDOWN_MS) {
+      return { applied: false, reason: 'countdown' };
     }
 
     const lizard = this.lizards.find((lz) => lz.id === lizardId);

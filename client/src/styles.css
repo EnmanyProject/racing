@@ -348,6 +348,31 @@ body {
   color: var(--gold);
   text-shadow: 0 4px 20px rgba(255, 215, 0, 0.5), 2px 2px 4px rgba(0, 0, 0, 0.8);
   line-height: 1;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* 3, 2, 1 카운트다운 (빨간색/주황색) */
+.tap-countdown-big.countdown-phase {
+  color: #ff6b6b;
+  text-shadow: 0 4px 20px rgba(255, 107, 107, 0.6), 2px 2px 4px rgba(0, 0, 0, 0.8);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+/* 1, 2, 3, 4, 5 탭 시간 (녹색) */
+.tap-countdown-big.tap-phase {
+  color: #7cfc00;
+  text-shadow: 0 4px 20px rgba(124, 252, 0, 0.6), 2px 2px 4px rgba(0, 0, 0, 0.8);
+  animation: tap-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes countdown-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes tap-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .tap-countdown-label {

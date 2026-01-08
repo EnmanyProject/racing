@@ -100,7 +100,7 @@ export interface RaceSnapshot {
 
 export interface BoostResult {
   applied: boolean;
-  reason?: 'invalid_phase' | 'invalid_lizard' | 'rate_limited' | 'lockout' | 'no_ticket' | 'no_selection';
+  reason?: 'invalid_phase' | 'invalid_lizard' | 'rate_limited' | 'lockout' | 'no_ticket' | 'no_selection' | 'countdown';
   newTapCount?: number;
 }
 

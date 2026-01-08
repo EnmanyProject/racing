@@ -640,6 +640,8 @@ function updateTapReadyView(container: HTMLElement, state: ClientState): void {
 // ========================
 // TAP VIEW
 // ========================
+const TAP_COUNTDOWN_MS = 3_000;  // 3초 카운트다운
+
 function renderTapView(container: HTMLElement, state: ClientState, actions: ApiActions): void {
   const view = document.createElement('div');
   view.className = 'tap-view';
@@ -657,12 +659,26 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
     view.append(geckoInfo);
   }
 
-  // 버튼 위 카운트다운 (5, 4, 3, 2, 1)
+  // 카운트다운/카운트업 표시 (3,2,1 → 1,2,3,4,5)
   const countdownBig = document.createElement('div');
   countdownBig.className = 'tap-countdown-big';
   countdownBig.id = 'tap-phase-countdown';
-  const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
-  countdownBig.textContent = String(Math.ceil(remaining / 1000));
+
+  // 초기 상태 계산
+  const elapsed = Date.now() - (state.snapshot?.phaseStartedAt ?? Date.now());
+  const isCountdownPhase = elapsed < TAP_COUNTDOWN_MS;
+
+  if (isCountdownPhase) {
+    // 3, 2, 1 카운트다운
+    const countdownRemaining = TAP_COUNTDOWN_MS - elapsed;
+    countdownBig.textContent = String(Math.ceil(countdownRemaining / 1000));
+    countdownBig.classList.add('countdown-phase');
+  } else {
+    // 1, 2, 3, 4, 5 카운트업
+    const tapElapsed = elapsed - TAP_COUNTDOWN_MS;
+    countdownBig.textContent = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
+    countdownBig.classList.add('tap-phase');
+  }
 
   // Tap Button
   const buttonWrapper = document.createElement('div');
@@ -671,7 +687,8 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
   tapButton.id = 'tap-button';
-  tapButton.disabled = !selectedGecko;
+  // 게코 미선택 또는 카운트다운 중이면 비활성화
+  tapButton.disabled = !selectedGecko || isCountdownPhase;
 
   const buttonImg = document.createElement('img');
   buttonImg.src = TAP_BUTTON_IMG;
@@ -702,6 +719,11 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
     if (!selectedGecko) return;
+
+    // 카운트다운 중이면 탭 무시
+    const currentElapsed = Date.now() - (state.snapshot?.phaseStartedAt ?? Date.now());
+    if (currentElapsed < TAP_COUNTDOWN_MS) return;
+
     actions.sendBoost(selectedGecko.id);
 
     // 즉시 카운터 업데이트 (서버 응답 전)
@@ -741,9 +763,31 @@ function updateTapView(container: HTMLElement, state: ClientState, _actions: Api
   }
 
   const countdown = container.querySelector('#tap-phase-countdown');
+  const tapButton = container.querySelector('#tap-button') as HTMLButtonElement | null;
+
   if (countdown && state.snapshot) {
-    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
-    countdown.textContent = String(Math.ceil(remaining / 1000));
+    const elapsed = Date.now() - state.snapshot.phaseStartedAt;
+    const isCountdownPhase = elapsed < TAP_COUNTDOWN_MS;
+
+    // 클래스 업데이트
+    countdown.classList.toggle('countdown-phase', isCountdownPhase);
+    countdown.classList.toggle('tap-phase', !isCountdownPhase);
+
+    if (isCountdownPhase) {
+      // 3, 2, 1 카운트다운
+      const countdownRemaining = TAP_COUNTDOWN_MS - elapsed;
+      countdown.textContent = String(Math.ceil(countdownRemaining / 1000));
+    } else {
+      // 1, 2, 3, 4, 5 카운트업
+      const tapElapsed = elapsed - TAP_COUNTDOWN_MS;
+      countdown.textContent = String(Math.min(5, Math.floor(tapElapsed / 1000) + 1));
+    }
+
+    // 탭 버튼 활성화/비활성화
+    if (tapButton) {
+      const selectedGecko = state.snapshot.lizards.find((lz) => lz.id === state.selectedLizardId);
+      tapButton.disabled = !selectedGecko || isCountdownPhase;
+    }
   }
 }
 
