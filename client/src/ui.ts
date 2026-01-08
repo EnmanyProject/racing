@@ -818,14 +818,18 @@ function renderRaceView(
 
 // 카메라 위치 업데이트 함수
 function updateCameraPosition(track: HTMLElement, leaderProgress: number): void {
-  // 선두가 화면 중앙~상단에 위치하도록 카메라 이동
-  // progress 0 = 시작, 1 = 결승선
-  // 카메라는 선두를 따라가되, 시작과 끝에서는 고정
-
-  // 트랙 높이가 200%이므로, 100% 이동하면 전체 트랙을 볼 수 있음
-  // 선두가 50% 이상 진행했을 때부터 카메라 이동 시작
-  const cameraOffset = Math.max(0, Math.min(leaderProgress - 0.3, 0.7)) * 100;
-  track.style.transform = `translateY(${cameraOffset}%)`;
+  // 선두가 화면 중앙에 위치하도록 카메라 이동
+  // progress 0 = 시작(하단), 1 = 결승선(상단)
+  // 트랙은 bottom: 0에서 위로 확장, runner는 bottom %로 위치
+  
+  // 선두가 20% 이상 진행하면 카메라가 따라가기 시작
+  // 트랙을 위로 이동 (음수 translateY)하여 선두를 따라감
+  const startFollow = 0.2;  // 카메라가 따라가기 시작하는 진행률
+  const followRange = 0.6;  // 카메라가 이동하는 범위
+  
+  const cameraProgress = Math.max(0, Math.min((leaderProgress - startFollow) / followRange, 1));
+  const cameraOffset = cameraProgress * 80;  // 최대 80% 이동
+  track.style.transform = `translateY(-${cameraOffset}%)`;
 }
 
 function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement>): void {
