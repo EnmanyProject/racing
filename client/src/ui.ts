@@ -326,15 +326,8 @@ function updateCountdown(elements: UIElements, state: ClientState): void {
 
   const { phase, racingElapsed } = state.snapshot;
 
-  // CLICK_WINDOW 페이즈: 남은 시간 카운트다운
-  if (phase === 'CLICK_WINDOW') {
-    const seconds = Math.max(0, Math.ceil((state.snapshot.phaseEndsAt - Date.now()) / 1000));
-    elements.countdownOverlay.container.dataset.visible = 'true';
-    elements.countdownOverlay.digit.textContent = seconds > 0 ? String(seconds) : 'GO!';
-    return;
-  }
-
-  // RACING 페이즈 시작: 3, 2, 1, GO! 카운트다운
+  // CLICK_WINDOW 페이즈: 오버레이 표시 안함 (탭 화면 내부에 카운트다운 있음)
+  // RACING 페이즈 시작: 3, 2, 1, GO! 카운트다운 오버레이 표시
   if (phase === 'RACING' && racingElapsed !== undefined) {
     const countdownDuration = 3000; // 3초 카운트다운
 
