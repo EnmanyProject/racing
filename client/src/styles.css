@@ -916,50 +916,74 @@ body {
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  /* 달리기 애니메이션 */
-  animation: geckoRun 0.2s ease-in-out infinite;
-  transform-origin: center bottom;
+  /* 도마뱀 기어가기 애니메이션 */
+  animation: geckoCrawl 0.25s ease-in-out infinite;
+  transform-origin: center center;
 }
 
-/* 도마뱀 달리기 애니메이션 - 좌우로 팔다리 휘저으면서 */
-@keyframes geckoRun {
+/* 도마뱀 기어가기 애니메이션 - 몸통이 S자로 움직이며 팔다리 휘젓기 */
+@keyframes geckoCrawl {
   0% {
-    transform: rotate(-8deg) translateY(0) scaleY(1);
+    transform: rotate(-12deg) scaleX(0.92) scaleY(1.08) translateY(0);
+  }
+  12.5% {
+    transform: rotate(-6deg) skewX(-5deg) scaleX(0.96) scaleY(1.04) translateY(-2px);
   }
   25% {
-    transform: rotate(0deg) translateY(-3px) scaleY(0.95);
+    transform: rotate(0deg) skewX(-8deg) scaleX(1) scaleY(0.95) translateY(-4px);
+  }
+  37.5% {
+    transform: rotate(6deg) skewX(-3deg) scaleX(1.04) scaleY(0.92) translateY(-2px);
   }
   50% {
-    transform: rotate(8deg) translateY(0) scaleY(1);
+    transform: rotate(12deg) scaleX(1.08) scaleY(0.92) translateY(0);
+  }
+  62.5% {
+    transform: rotate(6deg) skewX(5deg) scaleX(1.04) scaleY(0.96) translateY(-2px);
   }
   75% {
-    transform: rotate(0deg) translateY(-3px) scaleY(0.95);
+    transform: rotate(0deg) skewX(8deg) scaleX(1) scaleY(1) translateY(-4px);
+  }
+  87.5% {
+    transform: rotate(-6deg) skewX(3deg) scaleX(0.96) scaleY(1.04) translateY(-2px);
   }
   100% {
-    transform: rotate(-8deg) translateY(0) scaleY(1);
+    transform: rotate(-12deg) scaleX(0.92) scaleY(1.08) translateY(0);
   }
 }
 
 /* 슬로우모션 상태에서 애니메이션 속도 감소 */
 .race-view.slow-mo .race-runner img {
-  animation: geckoRunSlow 0.8s ease-in-out infinite;
+  animation: geckoCrawlSlow 1s ease-in-out infinite;
 }
 
-@keyframes geckoRunSlow {
+@keyframes geckoCrawlSlow {
   0% {
-    transform: rotate(-5deg) translateY(0) scaleY(1);
+    transform: rotate(-8deg) scaleX(0.95) scaleY(1.05) translateY(0);
+  }
+  12.5% {
+    transform: rotate(-4deg) skewX(-3deg) scaleX(0.97) scaleY(1.02) translateY(-1px);
   }
   25% {
-    transform: rotate(0deg) translateY(-2px) scaleY(0.97);
+    transform: rotate(0deg) skewX(-5deg) scaleX(1) scaleY(0.98) translateY(-2px);
+  }
+  37.5% {
+    transform: rotate(4deg) skewX(-2deg) scaleX(1.02) scaleY(0.96) translateY(-1px);
   }
   50% {
-    transform: rotate(5deg) translateY(0) scaleY(1);
+    transform: rotate(8deg) scaleX(1.05) scaleY(0.95) translateY(0);
+  }
+  62.5% {
+    transform: rotate(4deg) skewX(3deg) scaleX(1.02) scaleY(0.97) translateY(-1px);
   }
   75% {
-    transform: rotate(0deg) translateY(-2px) scaleY(0.97);
+    transform: rotate(0deg) skewX(5deg) scaleX(1) scaleY(1) translateY(-2px);
+  }
+  87.5% {
+    transform: rotate(-4deg) skewX(2deg) scaleX(0.97) scaleY(1.02) translateY(-1px);
   }
   100% {
-    transform: rotate(-5deg) translateY(0) scaleY(1);
+    transform: rotate(-8deg) scaleX(0.95) scaleY(1.05) translateY(0);
   }
 }
 
