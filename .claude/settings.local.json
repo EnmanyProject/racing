@@ -14,7 +14,9 @@
       "Bash(findstr:*)",
       "Bash(git checkout:*)",
       "Bash(python:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Skill(webapp-testing)",
+      "Bash(curl:*)"
     ]
   }
 }

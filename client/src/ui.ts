@@ -872,7 +872,8 @@ function renderRaceView(
     const runner = document.createElement('div');
     runner.className = 'race-runner';
     runner.dataset.lizardId = lizard.id;
-    const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress);
+    const isFinished = lizard.finishTime !== undefined;
+    const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress, isFinished);
     runner.style.bottom = `${screenPos}%`;
 
     // 1등 도마뱀 하이라이트
@@ -952,16 +953,24 @@ function renderRaceView(
 // 도마뱀 위치 계산 함수 (카메라 추적 적용)
 function calculateRunnerPosition(
   lizardProgress: number,
-  leaderProgress: number
+  leaderProgress: number,
+  isFinished: boolean
 ): number {
+  // 도착한 게코는 결승선(화면 상단)에 고정
+  if (isFinished) {
+    return 92; // 결승선 위치 (상단에 고정)
+  }
+
   // 선두가 화면 상단 70% 위치에 고정되도록 계산
   // progress 0 = 시작, 1 = 결승
+  // bottom: 70% = 화면 아래에서 70% 위치 (화면 상단 30% 지점)
   const leaderScreenPosition = 70;  // 선두가 위치할 화면 % (하단 기준)
-  const minScreenPosition = 5;      // 최소 화면 위치 (결승선 근처)
+  const minScreenPosition = 5;      // 최소 화면 위치 (하단)
+  const maxScreenPosition = 90;     // 최대 화면 위치 (결승선 근처)
 
-  // 선두가 30% 미만일 때는 그대로 표시
+  // 선두가 30% 미만일 때는 그대로 표시 (카메라 고정)
   if (leaderProgress < 0.3) {
-    return Math.min(lizardProgress * 100, 95);
+    return Math.min(lizardProgress * 100, maxScreenPosition);
   }
 
   // 선두와의 거리 계산
@@ -971,15 +980,15 @@ function calculateRunnerPosition(
   // 선두는 70% 위치, 뒤처진 도마뱀은 그보다 아래
   let screenPosition = leaderScreenPosition - (distanceFromLeader * 100);
 
-  // 선두가 결승에 가까워지면 화면 위치 조정
+  // 선두가 결승에 가까워지면 화면 위치 조정 (선두를 결승선으로 이동)
   if (leaderProgress > 0.8) {
     const finishAdjust = (leaderProgress - 0.8) / 0.2;  // 0~1
-    const adjustedLeaderPos = leaderScreenPosition + (95 - leaderScreenPosition) * finishAdjust;
+    const adjustedLeaderPos = leaderScreenPosition + (maxScreenPosition - leaderScreenPosition) * finishAdjust;
     screenPosition = adjustedLeaderPos - (distanceFromLeader * 100);
   }
 
   // 화면 범위 내로 제한
-  return Math.max(minScreenPosition, Math.min(screenPosition, 95));
+  return Math.max(minScreenPosition, Math.min(screenPosition, maxScreenPosition));
 }
 
 function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement>): void {
@@ -1020,7 +1029,8 @@ function updateRaceView(state: ClientState, raceRunners: Map<string, HTMLElement
     const runner = raceRunners.get(lizard.id);
     if (runner) {
       // 카메라 추적 적용 위치 계산
-      const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress);
+      const isFinished = lizard.finishTime !== undefined;
+      const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress, isFinished);
       runner.style.bottom = `${screenPos}%`;
 
       // 1등 하이라이트 업데이트 (카메라 워킹 효과)
