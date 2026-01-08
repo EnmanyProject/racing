@@ -523,7 +523,7 @@ function renderTapReadyView(
   container: HTMLElement,
   state: ClientState,
   actions: ApiActions,
-  _store: Store
+  store: Store
 ): void {
   const view = document.createElement('div');
   view.className = 'tap-view';
@@ -585,8 +585,14 @@ function renderTapReadyView(
 
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
-    if (!selectedGecko) return;
-    actions.sendBoost(selectedGecko.id);
+    // 최신 상태에서 선택된 게코 가져오기 (closure 문제 해결)
+    const currentState = store.getState();
+    const currentGecko = currentState.snapshot?.lizards.find(
+      (lz) => lz.id === currentState.selectedLizardId
+    );
+
+    if (!currentGecko) return;
+    actions.sendBoost(currentGecko.id);
 
     // 즉시 카운터 업데이트 (서버 응답 전)
     localTapCount++;
@@ -876,6 +882,15 @@ function renderRaceView(
     const screenPos = calculateRunnerPosition(lizard.progress, leaderProgress, isFinished);
     runner.style.bottom = `${screenPos}%`;
 
+    // 내가 선택한 도마뱀 표시 (화살표)
+    if (state.selectedLizardId === lizard.id) {
+      runner.classList.add('my-gecko');
+      const myArrow = document.createElement('div');
+      myArrow.className = 'my-gecko-arrow';
+      myArrow.innerHTML = '▼';
+      runner.append(myArrow);
+    }
+
     // 1등 도마뱀 하이라이트
     if (leadingLizard && lizard.id === leadingLizard.id && !lizard.finishTime) {
       runner.classList.add('leading');
@@ -951,6 +966,7 @@ function renderRaceView(
 }
 
 // 도마뱀 위치 계산 함수 (카메라 추적 적용)
+// 카메라는 항상 1위 도마뱀을 화면 중앙-상단에 고정하고 따라감
 function calculateRunnerPosition(
   lizardProgress: number,
   leaderProgress: number,
@@ -961,30 +977,31 @@ function calculateRunnerPosition(
     return 92; // 결승선 위치 (상단에 고정)
   }
 
-  // 선두가 화면 상단 70% 위치에 고정되도록 계산
-  // progress 0 = 시작, 1 = 결승
-  // bottom: 70% = 화면 아래에서 70% 위치 (화면 상단 30% 지점)
-  const leaderScreenPosition = 70;  // 선두가 위치할 화면 % (하단 기준)
+  // 카메라 설정
+  const leaderScreenPosition = 65;  // 선두가 위치할 화면 % (하단 기준, 화면 상단 35% 지점)
   const minScreenPosition = 5;      // 최소 화면 위치 (하단)
   const maxScreenPosition = 90;     // 최대 화면 위치 (결승선 근처)
+  const cameraStartThreshold = 0.15; // 이 progress 이후부터 카메라 추적 시작
 
-  // 선두가 30% 미만일 때는 그대로 표시 (카메라 고정)
-  if (leaderProgress < 0.3) {
-    return Math.min(lizardProgress * 100, maxScreenPosition);
+  // 선두가 아직 시작점 근처일 때는 고정 카메라
+  if (leaderProgress < cameraStartThreshold) {
+    return Math.min(lizardProgress * 100 * 3, maxScreenPosition); // 스케일 조정
   }
 
   // 선두와의 거리 계산
   const distanceFromLeader = leaderProgress - lizardProgress;
 
   // 선두 기준 상대 위치 계산
-  // 선두는 70% 위치, 뒤처진 도마뱀은 그보다 아래
-  let screenPosition = leaderScreenPosition - (distanceFromLeader * 100);
+  // 선두는 65% 위치, 뒤처진 도마뱀은 그보다 아래
+  // 화면 높이 대비 거리 스케일링 (더 넓은 시야)
+  const distanceScale = 200; // 거리 대비 화면 이동 비율
+  let screenPosition = leaderScreenPosition - (distanceFromLeader * distanceScale);
 
   // 선두가 결승에 가까워지면 화면 위치 조정 (선두를 결승선으로 이동)
-  if (leaderProgress > 0.8) {
-    const finishAdjust = (leaderProgress - 0.8) / 0.2;  // 0~1
+  if (leaderProgress > 0.85) {
+    const finishAdjust = (leaderProgress - 0.85) / 0.15;  // 0~1
     const adjustedLeaderPos = leaderScreenPosition + (maxScreenPosition - leaderScreenPosition) * finishAdjust;
-    screenPosition = adjustedLeaderPos - (distanceFromLeader * 100);
+    screenPosition = adjustedLeaderPos - (distanceFromLeader * distanceScale);
   }
 
   // 화면 범위 내로 제한

@@ -18,7 +18,7 @@ import type {
 const TIMELINE_DEFAULT: PhaseDefinition[] = [
   { name: 'LOBBY', durationMs: 120_000 },
   { name: 'CLICK_WINDOW', durationMs: 8_000 },  // 3초 카운트다운 + 5초 탭
-  { name: 'RACING', durationMs: 10_000 },
+  { name: 'RACING', durationMs: 30_000 },       // 30초 경주 (3배 연장)
   { name: 'RESULTS', durationMs: 5_000 }
 ];
 
@@ -42,7 +42,7 @@ export const DEFAULT_CONFIG: GameConfig = {
 };
 
 const TRACK_LENGTH = 100;
-const BASE_NORMALIZED_SPEED = 0.12;
+const BASE_NORMALIZED_SPEED = 0.04;  // 3배 느리게 (0.12 / 3)
 const CLICK_WINDOW_LIMIT_PER_SECOND = 50;
 
 export class GameLoop extends EventEmitter {
@@ -296,7 +296,8 @@ export class GameLoop extends EventEmitter {
     this.lizards.forEach((lizard) => {
       const totalClicks = this.clickTotals.get(lizard.id) ?? 0;
       const ratio = maxClicks > 0 ? totalClicks / maxClicks : 0;
-      const speedNormalized = BASE_NORMALIZED_SPEED + 0.16 * ratio;
+      // 기본 속도 + 탭 보너스 (3배 느려진 비율에 맞춤)
+      const speedNormalized = BASE_NORMALIZED_SPEED + 0.053 * ratio;  // 0.16 / 3
       const speed = speedNormalized * TRACK_LENGTH;
       this.raceSpeeds.set(lizard.id, { speed, totalClicks });
       this.positions.set(lizard.id, 0);
