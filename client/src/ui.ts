@@ -619,10 +619,17 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
 
   counterContainer.append(counterLabel, counter);
 
+  // 로컬 탭 카운트 (즉시 피드백용)
+  let localTapCount = state.myTapCount;
+
   // 탭 애니메이션 효과
   const triggerTapEffect = () => {
     if (!selectedGecko) return;
     actions.sendBoost(selectedGecko.id);
+
+    // 즉시 카운터 업데이트 (서버 응답 전)
+    localTapCount++;
+    counter.textContent = String(localTapCount);
 
     // 카운터 펄스 애니메이션
     counter.classList.remove('pulse');

@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG: GameConfig = {
 };
 
 const TRACK_LENGTH = 100;
-const BASE_NORMALIZED_SPEED = 0.2;
+const BASE_NORMALIZED_SPEED = 0.12;
 const CLICK_WINDOW_LIMIT_PER_SECOND = 50;
 
 export class GameLoop extends EventEmitter {
@@ -287,7 +287,7 @@ export class GameLoop extends EventEmitter {
     this.lizards.forEach((lizard) => {
       const totalClicks = this.clickTotals.get(lizard.id) ?? 0;
       const ratio = maxClicks > 0 ? totalClicks / maxClicks : 0;
-      const speedNormalized = BASE_NORMALIZED_SPEED + 0.8 * ratio;
+      const speedNormalized = BASE_NORMALIZED_SPEED + 0.16 * ratio;
       const speed = speedNormalized * TRACK_LENGTH;
       this.raceSpeeds.set(lizard.id, { speed, totalClicks });
       this.positions.set(lizard.id, 0);
