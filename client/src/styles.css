@@ -798,7 +798,12 @@ body {
   transform: translateX(-50%);
   width: 48px;
   height: 48px;
-  transition: bottom 0.15s linear;
+  transition: bottom 0.1s ease-out;
+}
+
+/* 슬로우모션 상태에서 도마뱀 이동 */
+.race-view.slow-mo .race-runner {
+  transition: bottom 0.4s ease-out;
 }
 
 /* 1등 도마뱀 스포트라이트 효과 */
@@ -1110,12 +1115,60 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 700;
   color: var(--gold);
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
-  animation: pulse 0.5s ease-in-out infinite;
+  text-shadow:
+    0 0 20px rgba(255, 215, 0, 0.8),
+    0 0 40px rgba(255, 215, 0, 0.6),
+    0 4px 12px rgba(0, 0, 0, 0.8);
+  animation: photoFinishPulse 0.8s ease-in-out infinite;
   pointer-events: none;
+  z-index: 200;
+  letter-spacing: 2px;
+}
+
+@keyframes photoFinishPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0.9;
+  }
+}
+
+/* 슬로우모션 화면 효과 */
+.race-view.slow-mo {
+  animation: slowMoVignette 1.5s ease-in-out infinite;
+}
+
+.race-view.slow-mo::before {
+  background:
+    /* 좌측 응원봉 빛 - 더 강하게 */
+    radial-gradient(circle at 5% 30%, rgba(255, 215, 0, 0.5) 0%, transparent 20%),
+    radial-gradient(circle at 8% 50%, rgba(124, 252, 0, 0.4) 0%, transparent 15%),
+    radial-gradient(circle at 3% 70%, rgba(255, 107, 107, 0.4) 0%, transparent 18%),
+    /* 우측 응원봉 빛 - 더 강하게 */
+    radial-gradient(circle at 95% 25%, rgba(255, 215, 0, 0.5) 0%, transparent 20%),
+    radial-gradient(circle at 92% 55%, rgba(124, 252, 0, 0.4) 0%, transparent 15%),
+    radial-gradient(circle at 97% 75%, rgba(147, 112, 219, 0.4) 0%, transparent 18%);
+  animation: crowdCheer 0.3s ease-in-out infinite alternate !important;
+}
+
+@keyframes slowMoVignette {
+  0%, 100% {
+    box-shadow: inset 0 0 80px rgba(255, 215, 0, 0.2);
+  }
+  50% {
+    box-shadow: inset 0 0 120px rgba(255, 215, 0, 0.35);
+  }
+}
+
+@keyframes crowdCheer {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; }
 }
 
 @keyframes pulse {

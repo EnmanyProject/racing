@@ -755,7 +755,11 @@ function renderTapView(container: HTMLElement, state: ClientState, actions: ApiA
 function updateTapView(container: HTMLElement, state: ClientState, _actions: ApiActions): void {
   const counter = container.querySelector('#tap-counter');
   if (counter) {
-    counter.textContent = String(state.myTapCount);
+    // 서버에서 확인된 탭 수가 현재 표시된 수보다 크면 업데이트
+    const currentDisplayed = parseInt(counter.textContent || '0', 10);
+    if (state.myTapCount > currentDisplayed) {
+      counter.textContent = String(state.myTapCount);
+    }
   }
 
   const countdown = container.querySelector('#tap-phase-countdown') as HTMLElement | null;
