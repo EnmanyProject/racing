@@ -184,7 +184,8 @@ export class GameLoop extends EventEmitter {
   }
 
   applyBoost(playerId: string, lizardId: string): BoostResult {
-    if (this.timing.phase !== 'CLICK_WINDOW') {
+    // LOBBY와 CLICK_WINDOW 둘 다 탭 허용
+    if (this.timing.phase !== 'LOBBY' && this.timing.phase !== 'CLICK_WINDOW') {
       return { applied: false, reason: 'invalid_phase' };
     }
 

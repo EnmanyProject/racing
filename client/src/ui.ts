@@ -501,7 +501,7 @@ function updateLobbyView(state: ClientState, geckoCards: Map<string, GeckoCardEl
 function renderTapReadyView(
   container: HTMLElement,
   state: ClientState,
-  _actions: ApiActions,
+  actions: ApiActions,
   _store: Store
 ): void {
   const view = document.createElement('div');
@@ -511,35 +511,31 @@ function renderTapReadyView(
   const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
   const seconds = Math.ceil(remaining / 1000);
 
-  // Instruction text
-  const instruction = document.createElement('div');
-  instruction.className = 'tap-instruction';
-  instruction.textContent = 'Tap the button in';
+  // Selected Gecko Info
+  if (selectedGecko) {
+    const geckoInfo = document.createElement('div');
+    geckoInfo.className = 'selected-gecko-info';
+    geckoInfo.innerHTML = `
+      <img src="${selectedGecko.image}" alt="${selectedGecko.name}">
+      <span class="name">${selectedGecko.name}</span>
+    `;
+    view.append(geckoInfo);
+  }
 
-  // Big countdown
+  // 경주 시작까지 남은 시간
   const countdownBig = document.createElement('div');
   countdownBig.className = 'tap-countdown-big';
   countdownBig.id = 'tap-ready-countdown';
   countdownBig.textContent = String(seconds);
 
-  const countdownLabel = document.createElement('div');
-  countdownLabel.className = 'tap-countdown-label';
-  countdownLabel.textContent = 'Seconds!';
-
-  // Selected Gecko Display
-  const geckoDisplay = document.createElement('div');
-  geckoDisplay.className = 'tap-gecko-display';
-  if (selectedGecko) {
-    geckoDisplay.innerHTML = `<img src="${selectedGecko.image}" alt="${selectedGecko.name}">`;
-  }
-
-  // Tap Button (disabled during waiting)
+  // Tap Button (이제 활성화!)
   const buttonWrapper = document.createElement('div');
   buttonWrapper.className = 'tap-button-wrapper';
 
   const tapButton = document.createElement('button');
   tapButton.className = 'tap-button';
-  tapButton.disabled = true;
+  tapButton.id = 'tap-button';
+  tapButton.disabled = !selectedGecko;
 
   const buttonImg = document.createElement('img');
   buttonImg.src = TAP_BUTTON_IMG;
@@ -547,7 +543,55 @@ function renderTapReadyView(
   tapButton.append(buttonImg);
   buttonWrapper.append(tapButton);
 
-  view.append(instruction, countdownBig, countdownLabel, geckoDisplay, buttonWrapper);
+  // 버튼 아래 탭 카운터
+  const counterContainer = document.createElement('div');
+  counterContainer.className = 'tap-counter-container';
+  counterContainer.id = 'tap-counter-container';
+
+  const counterLabel = document.createElement('div');
+  counterLabel.className = 'tap-counter-label';
+  counterLabel.textContent = 'Your Taps';
+
+  const counter = document.createElement('div');
+  counter.className = 'tap-counter';
+  counter.id = 'tap-counter';
+  counter.textContent = String(state.myTapCount);
+
+  counterContainer.append(counterLabel, counter);
+
+  // 로컬 탭 카운트 (즉시 피드백용)
+  let localTapCount = state.myTapCount;
+
+  // 탭 애니메이션 효과
+  const triggerTapEffect = () => {
+    if (!selectedGecko) return;
+    actions.sendBoost(selectedGecko.id);
+
+    // 즉시 카운터 업데이트 (서버 응답 전)
+    localTapCount++;
+    counter.textContent = String(localTapCount);
+
+    // 카운터 펄스 애니메이션
+    counter.classList.remove('pulse');
+    void counter.offsetWidth;
+    counter.classList.add('pulse');
+
+    // +1 플로팅 텍스트
+    const floatText = document.createElement('div');
+    floatText.className = 'tap-float';
+    floatText.textContent = '+1';
+    floatText.style.left = `${Math.random() * 40 + 30}%`;
+    counterContainer.append(floatText);
+    setTimeout(() => floatText.remove(), 600);
+  };
+
+  tapButton.addEventListener('click', triggerTapEffect);
+  tapButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    triggerTapEffect();
+  }, { passive: false });
+
+  view.append(countdownBig, buttonWrapper, counterContainer);
   container.append(view);
 }
 
@@ -557,6 +601,11 @@ function updateTapReadyView(container: HTMLElement, state: ClientState): void {
     const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
     const seconds = Math.ceil(remaining / 1000);
     countdown.textContent = String(seconds);
+  }
+
+  const counter = container.querySelector('#tap-counter');
+  if (counter) {
+    counter.textContent = String(state.myTapCount);
   }
 }
 
