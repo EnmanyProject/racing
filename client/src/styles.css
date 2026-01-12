@@ -645,100 +645,101 @@ body {
   z-index: 0;
 }
 
-/* 트랙 컨테이너 */
+/* 트랙 컨테이너 - 통 바닥 (주로 구분 없음) */
 .race-track {
   display: flex;
   flex-direction: row;
-  gap: 4px;
   position: absolute;
   left: 8px;
   right: 8px;
   top: 60px;
   bottom: 20px;
   z-index: 2;
-}
-
-.race-lane {
-  flex: 1;
-  position: relative;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
-  /* 레인 구분선 */
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, 0.1),
-    inset -1px 0 0 rgba(255, 255, 255, 0.1);
 }
 
-/* 잔디 배경 레이어 - 스크롤 애니메이션 적용 */
-.race-lane::before {
+/* 잔디 배경 레이어 - 트랙 전체에 적용 */
+.race-track::before {
   content: '';
   position: absolute;
   inset: 0;
   background:
-    /* 트랙 레인 라인 */
-    linear-gradient(90deg,
-      rgba(255, 255, 255, 0.1) 0px,
-      transparent 2px,
-      transparent calc(100% - 2px),
-      rgba(255, 255, 255, 0.1) 100%
-    ),
     /* 잔디 디테일 - 불규칙한 잔디 느낌 */
     repeating-linear-gradient(
-      5deg,
-      rgba(60, 140, 40, 0.3) 0px,
-      transparent 1px,
-      transparent 8px
+      7deg,
+      rgba(60, 140, 40, 0.4) 0px,
+      transparent 2px,
+      transparent 15px
     ),
     repeating-linear-gradient(
-      -5deg,
-      rgba(80, 160, 50, 0.2) 0px,
-      transparent 1px,
-      transparent 12px
+      -7deg,
+      rgba(80, 160, 50, 0.3) 0px,
+      transparent 2px,
+      transparent 20px
     ),
+    /* 잔디 얼룩 패턴 */
+    radial-gradient(ellipse at 20% 30%, rgba(50, 130, 50, 0.4) 0%, transparent 30%),
+    radial-gradient(ellipse at 70% 60%, rgba(40, 120, 40, 0.3) 0%, transparent 25%),
+    radial-gradient(ellipse at 40% 80%, rgba(60, 140, 60, 0.35) 0%, transparent 20%),
     /* 잔디 줄무늬 패턴 */
     repeating-linear-gradient(
       0deg,
       var(--track-green) 0px,
-      #2a8a2a 8px,
-      var(--track-dark) 16px,
-      #1a6a1a 24px,
-      var(--track-green) 32px
+      #2a8a2a 12px,
+      var(--track-dark) 24px,
+      #1a6a1a 36px,
+      var(--track-green) 48px
     );
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 64px;
-  animation: grassScroll 0.8s linear infinite;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 96px;
+  animation: grassScroll 1s linear infinite;
   z-index: 0;
 }
 
 /* 잔디 스크롤 애니메이션 */
 @keyframes grassScroll {
   0% {
-    background-position-y: 0, 0, 0, 0;
+    background-position-y: 0, 0, 0, 0, 0, 0;
   }
   100% {
-    background-position-y: 0, 0, 0, 64px;
+    background-position-y: 0, 0, 0, 0, 0, 96px;
   }
 }
 
 /* 슬로우모션일 때 잔디 스크롤 느려짐 */
-.race-view.slow-mo .race-lane::before {
-  animation-duration: 3s;
+.race-view.slow-mo .race-track::before {
+  animation-duration: 4s;
 }
 
+.race-lane {
+  flex: 1;
+  position: relative;
+  /* 주로 구분선 제거 - 투명 배경 */
+}
+
+/* 시작선 마커 - 레인별 대신 트랙 전체에 표시 */
 .lane-marker {
+  display: none; /* 개별 레인 마커 숨김 */
+}
+
+/* 트랙 전체 시작선 */
+.race-track::after {
+  content: '';
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 24px;
+  height: 30px;
   background:
     repeating-linear-gradient(
       90deg,
       var(--white) 0px,
-      var(--white) 8px,
-      var(--black) 8px,
-      var(--black) 16px
+      var(--white) 12px,
+      var(--black) 12px,
+      var(--black) 24px
     );
-  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.4);
+  z-index: 5;
 }
 
 /* 결승선 - 트랙 상단에 고정 */
@@ -1862,94 +1863,221 @@ body {
   50% { opacity: 0.6; }
 }
 
-/* Waiting View */
+/* Waiting View - 경주 대기 화면 */
 .waiting-view {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   height: 100%;
-  padding: 20px;
+  padding: 16px;
   text-align: center;
+  gap: 12px;
+  overflow: hidden;
 }
 
-.waiting-view .selected-gecko-info {
-  margin-bottom: 20px;
+/* 경주 준비 화면 스타일 */
+.waiting-view.race-ready {
+  background:
+    radial-gradient(ellipse at center bottom, rgba(255, 200, 100, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--jungle-dark) 0%, var(--jungle-green) 50%, var(--jungle-dark) 100%);
+}
+
+.race-ready-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.race-ready-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--gold);
+  text-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+  animation: titlePulse 2s ease-in-out infinite;
+}
+
+@keyframes titlePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.race-ready-subtitle {
+  font-size: 14px;
+  color: var(--white-muted);
+  margin-top: 4px;
+}
+
+/* 출발선 미리보기 */
+.start-line-preview {
+  width: 100%;
+  max-width: 360px;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.preview-track {
+  width: 100%;
+  height: 100%;
   position: relative;
+  background:
+    /* 잔디 디테일 */
+    repeating-linear-gradient(
+      7deg,
+      rgba(60, 140, 40, 0.4) 0px,
+      transparent 2px,
+      transparent 12px
+    ),
+    repeating-linear-gradient(
+      -7deg,
+      rgba(80, 160, 50, 0.3) 0px,
+      transparent 2px,
+      transparent 16px
+    ),
+    /* 잔디 베이스 */
+    linear-gradient(180deg, var(--track-green) 0%, var(--track-dark) 100%);
+  animation: previewGrassScroll 2s linear infinite;
 }
 
-.waiting-view .selected-gecko-info.waiting {
+@keyframes previewGrassScroll {
+  0% { background-position-y: 0, 0, 0; }
+  100% { background-position-y: 24px, 32px, 0; }
+}
+
+.preview-start-line {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--white) 0px,
+      var(--white) 8px,
+      var(--black) 8px,
+      var(--black) 16px
+    );
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.preview-gecko-slot {
+  position: absolute;
+  bottom: 40px;
+  width: 48px;
+  height: 60px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  transform: translateX(-50%);
 }
 
-.waiting-view .selected-gecko-info .my-gecko-arrow {
-  position: static;
-  font-size: 32px;
+.preview-gecko-slot img {
+  width: 40px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  animation: geckoWiggle 0.5s ease-in-out infinite;
+}
+
+@keyframes geckoWiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+.preview-gecko-slot.my-gecko img {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.8)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.preview-gecko-slot .my-marker {
+  position: absolute;
+  top: -24px;
+  font-size: 12px;
+  font-weight: 700;
   color: #00FF00;
-  text-shadow: 0 0 10px rgba(0, 255, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.5);
-  animation: arrowBounce 1s ease-in-out infinite;
-  margin-bottom: 10px;
+  text-shadow: 0 0 8px rgba(0, 255, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.8);
+  animation: markerBounce 1s ease-in-out infinite;
+  white-space: nowrap;
 }
 
-.tap-completed-text {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--jungle-accent);
-  text-shadow:
-    0 0 15px rgba(124, 252, 0, 0.6),
-    0 2px 4px rgba(0, 0, 0, 0.5);
-  margin-bottom: 20px;
+@keyframes markerBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
-.my-taps-display {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 20px;
-  margin-bottom: 30px;
-  padding: 12px 24px;
+.preview-gecko-slot .gecko-taps {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--white);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-top: 2px;
+}
+
+/* 내 경주 정보 카드 */
+.my-race-info {
   background: rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
   border: 1px solid rgba(124, 252, 0, 0.3);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
 }
 
-.my-taps-display .label {
+.my-race-info .info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.my-race-info .label {
+  font-size: 13px;
   color: var(--white-muted);
 }
 
-.my-taps-display .value {
-  font-size: 28px;
-  font-weight: 800;
+.my-race-info .value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.my-race-info .gecko-name {
   color: var(--jungle-accent);
-  text-shadow: 0 0 10px rgba(124, 252, 0, 0.5);
+}
+
+.my-race-info .tap-count {
+  color: var(--gold);
+  font-size: 20px;
 }
 
 .waiting-countdown {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: 4px;
 }
 
 .waiting-countdown .label {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--white-muted);
 }
 
 .waiting-countdown .time {
-  font-size: 48px;
+  font-size: 56px;
   font-weight: 900;
   color: var(--gold);
   text-shadow:
-    0 0 15px rgba(255, 215, 0, 0.6),
+    0 0 20px rgba(255, 215, 0, 0.6),
     0 2px 4px rgba(0, 0, 0, 0.5);
+  animation: countdownPulse 1s ease-in-out infinite;
 }
 
 .waiting-message {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--white-soft);
   animation: waitingDots 1.5s ease-in-out infinite;
 }

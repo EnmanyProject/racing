@@ -796,7 +796,7 @@ function renderPersonalTapView(
 }
 
 // ========================
-// WAITING VIEW (레이스 대기)
+// WAITING VIEW (레이스 대기 - 출발선 대기 화면)
 // ========================
 function renderWaitingView(
   container: HTMLElement,
@@ -804,36 +804,69 @@ function renderWaitingView(
   _store: Store
 ): void {
   const view = document.createElement('div');
-  view.className = 'waiting-view';
+  view.className = 'waiting-view race-ready';
 
-  const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
-
-  // Selected Gecko Info with arrow
-  if (selectedGecko) {
-    const geckoInfo = document.createElement('div');
-    geckoInfo.className = 'selected-gecko-info waiting';
-    geckoInfo.innerHTML = `
-      <div class="my-gecko-arrow">▼</div>
-      <img src="${selectedGecko.image}" alt="${selectedGecko.name}">
-      <span class="name">${selectedGecko.name}</span>
-    `;
-    view.append(geckoInfo);
-  }
-
-  // 탭 완료 표시
-  const completedText = document.createElement('div');
-  completedText.className = 'tap-completed-text';
-  completedText.textContent = '탭 완료!';
-  view.append(completedText);
-
-  // 내 탭 수 표시
-  const myTapsDisplay = document.createElement('div');
-  myTapsDisplay.className = 'my-taps-display';
-  myTapsDisplay.innerHTML = `
-    <span class="label">내 탭 수:</span>
-    <span class="value" id="waiting-tap-count">${state.myTapCount}</span>
+  // 헤더 - 경주 준비 중
+  const header = document.createElement('div');
+  header.className = 'race-ready-header';
+  header.innerHTML = `
+    <div class="race-ready-title">🏁 경주 준비 중</div>
+    <div class="race-ready-subtitle">출발선에서 대기 중...</div>
   `;
-  view.append(myTapsDisplay);
+  view.append(header);
+
+  // 출발선 미리보기 - 모든 게코 표시
+  const startLinePreview = document.createElement('div');
+  startLinePreview.className = 'start-line-preview';
+
+  // 잔디 트랙 배경
+  const trackBg = document.createElement('div');
+  trackBg.className = 'preview-track';
+
+  // 출발선
+  const startLine = document.createElement('div');
+  startLine.className = 'preview-start-line';
+  trackBg.append(startLine);
+
+  // 모든 게코 출발선에 배치
+  state.snapshot?.lizards.forEach((lizard, index) => {
+    const geckoSlot = document.createElement('div');
+    geckoSlot.className = 'preview-gecko-slot';
+    if (lizard.id === state.selectedLizardId) {
+      geckoSlot.classList.add('my-gecko');
+    }
+
+    const taps = state.snapshot?.clickTotals[lizard.id] ?? 0;
+
+    geckoSlot.innerHTML = `
+      ${lizard.id === state.selectedLizardId ? '<div class="my-marker">▼ 나</div>' : ''}
+      <img src="${lizard.image}" alt="${lizard.name}">
+      <div class="gecko-taps">${taps}</div>
+    `;
+    geckoSlot.style.left = `${10 + (index * 16)}%`;
+    trackBg.append(geckoSlot);
+  });
+
+  startLinePreview.append(trackBg);
+  view.append(startLinePreview);
+
+  // 내 정보 카드
+  const selectedGecko = state.snapshot?.lizards.find((lz) => lz.id === state.selectedLizardId);
+  if (selectedGecko) {
+    const myInfoCard = document.createElement('div');
+    myInfoCard.className = 'my-race-info';
+    myInfoCard.innerHTML = `
+      <div class="info-row">
+        <span class="label">내 게코</span>
+        <span class="value gecko-name">${selectedGecko.name}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">내 탭 수</span>
+        <span class="value tap-count" id="waiting-tap-count">${state.myTapCount}</span>
+      </div>
+    `;
+    view.append(myInfoCard);
+  }
 
   // 레이스 시작까지 남은 시간
   const remaining = Math.max(0, (state.snapshot?.phaseEndsAt ?? 0) - Date.now());
