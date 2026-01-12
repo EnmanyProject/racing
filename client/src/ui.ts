@@ -115,6 +115,13 @@ function updateLocalCountdowns(elements: UIElements, state: ClientState): void {
     const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
     tapPhaseCountdown.textContent = `${Math.ceil(remaining / 1000)}s remaining`;
   }
+
+  // waiting 화면 카운트다운 (레이스 시작까지)
+  const waitingTime = elements.mainContent.querySelector('#waiting-time');
+  if (waitingTime && state.snapshot) {
+    const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
+    waitingTime.textContent = formatCountdown(remaining);
+  }
 }
 
 function createBaseLayout(container: HTMLElement): UIElements {
