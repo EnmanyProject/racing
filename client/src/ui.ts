@@ -56,6 +56,7 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
     const state = store.getState();
     updatePhaseBar(elements, state);
     updateLocalCountdowns(elements, state);
+    updateRaceCountdownOverlay(elements, state);
 
     // 개인 탭 페이즈 자동 전환
     if (state.personalTapPhase !== 'idle' && state.personalTapStartTime) {
@@ -73,7 +74,7 @@ export function mountUI(store: Store, actions: ApiActions, animator: Animator, c
     updateHeader(elements, state);
     updatePhaseBar(elements, state);
     updateToast(elements, state);
-    updateCountdown(elements, state);
+    updateRaceCountdownOverlay(elements, state);
     updateInviteModal(elements, state, store);
 
     const newPhase = state.snapshot?.phase ?? null;
@@ -122,6 +123,60 @@ function updateLocalCountdowns(elements: UIElements, state: ClientState): void {
     const remaining = Math.max(0, state.snapshot.phaseEndsAt - Date.now());
     waitingTime.textContent = formatCountdown(remaining);
   }
+
+  // 개인 탭 카운트다운 (3, 2, 1) 업데이트
+  if (state.personalTapPhase === 'countdown' && state.personalTapStartTime) {
+    const countdownNum = elements.mainContent.querySelector('#personal-countdown-number');
+    if (countdownNum) {
+      const elapsed = Date.now() - state.personalTapStartTime;
+      const remaining = Math.max(0, PERSONAL_COUNTDOWN_MS - elapsed);
+      const seconds = Math.ceil(remaining / 1000);
+      countdownNum.textContent = String(seconds || 1);
+    }
+  }
+
+  // 개인 탭 카운트업 (1, 2, 3, 4, 5) 업데이트
+  if (state.personalTapPhase === 'tapping' && state.personalTapStartTime) {
+    const countupNum = elements.mainContent.querySelector('#personal-countup-number');
+    if (countupNum) {
+      const elapsed = Date.now() - state.personalTapStartTime;
+      const tapElapsed = elapsed - PERSONAL_COUNTDOWN_MS;
+      const countupValue = Math.min(5, Math.floor(tapElapsed / 1000) + 1);
+      countupNum.textContent = String(countupValue);
+    }
+  }
+}
+
+// 레이싱 시작 카운트다운 오버레이 업데이트 (3, 2, 1, GO!)
+function updateRaceCountdownOverlay(elements: UIElements, state: ClientState): void {
+  if (!state.snapshot) {
+    elements.countdownOverlay.container.dataset.visible = 'false';
+    return;
+  }
+
+  const { phase, racingElapsed } = state.snapshot;
+
+  // RACING 페이즈 시작: 3, 2, 1, GO! 카운트다운 오버레이 표시
+  if (phase === 'RACING' && racingElapsed !== undefined) {
+    const countdownDuration = 3000; // 3초 카운트다운
+
+    if (racingElapsed < countdownDuration + 500) { // +500ms for "GO!" display
+      elements.countdownOverlay.container.dataset.visible = 'true';
+
+      if (racingElapsed < 1000) {
+        elements.countdownOverlay.digit.textContent = '3';
+      } else if (racingElapsed < 2000) {
+        elements.countdownOverlay.digit.textContent = '2';
+      } else if (racingElapsed < 3000) {
+        elements.countdownOverlay.digit.textContent = '1';
+      } else {
+        elements.countdownOverlay.digit.textContent = 'GO!';
+      }
+      return;
+    }
+  }
+
+  elements.countdownOverlay.container.dataset.visible = 'false';
 }
 
 function createBaseLayout(container: HTMLElement): UIElements {
@@ -343,38 +398,6 @@ function updateToast(elements: UIElements, state: ClientState): void {
   elements.toast.classList.add('show');
   elements.toast.dataset.tone = state.toast.tone;
   elements.toast.textContent = state.toast.message;
-}
-
-function updateCountdown(elements: UIElements, state: ClientState): void {
-  if (!state.snapshot) {
-    elements.countdownOverlay.container.dataset.visible = 'false';
-    return;
-  }
-
-  const { phase, racingElapsed } = state.snapshot;
-
-  // CLICK_WINDOW 페이즈: 오버레이 표시 안함 (탭 화면 내부에 카운트다운 있음)
-  // RACING 페이즈 시작: 3, 2, 1, GO! 카운트다운 오버레이 표시
-  if (phase === 'RACING' && racingElapsed !== undefined) {
-    const countdownDuration = 3000; // 3초 카운트다운
-
-    if (racingElapsed < countdownDuration + 500) { // +500ms for "GO!" display
-      elements.countdownOverlay.container.dataset.visible = 'true';
-
-      if (racingElapsed < 1000) {
-        elements.countdownOverlay.digit.textContent = '3';
-      } else if (racingElapsed < 2000) {
-        elements.countdownOverlay.digit.textContent = '2';
-      } else if (racingElapsed < 3000) {
-        elements.countdownOverlay.digit.textContent = '1';
-      } else {
-        elements.countdownOverlay.digit.textContent = 'GO!';
-      }
-      return;
-    }
-  }
-
-  elements.countdownOverlay.container.dataset.visible = 'false';
 }
 
 function renderMainContent(

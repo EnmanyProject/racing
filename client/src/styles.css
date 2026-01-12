@@ -661,6 +661,19 @@ body {
 .race-lane {
   flex: 1;
   position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+  /* 레인 구분선 */
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.1),
+    inset -1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 잔디 배경 레이어 - 스크롤 애니메이션 적용 */
+.race-lane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background:
     /* 트랙 레인 라인 */
     linear-gradient(90deg,
@@ -669,28 +682,46 @@ body {
       transparent calc(100% - 2px),
       rgba(255, 255, 255, 0.1) 100%
     ),
-    /* 거리 표시 줄무늬 */
+    /* 잔디 디테일 - 불규칙한 잔디 느낌 */
     repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.05) 0px,
-      rgba(255, 255, 255, 0.05) 2px,
-      transparent 2px,
-      transparent 50px
+      5deg,
+      rgba(60, 140, 40, 0.3) 0px,
+      transparent 1px,
+      transparent 8px
     ),
-    /* 잔디 질감 */
+    repeating-linear-gradient(
+      -5deg,
+      rgba(80, 160, 50, 0.2) 0px,
+      transparent 1px,
+      transparent 12px
+    ),
+    /* 잔디 줄무늬 패턴 */
     repeating-linear-gradient(
       0deg,
       var(--track-green) 0px,
-      var(--track-green) 25px,
-      var(--track-dark) 25px,
-      var(--track-dark) 50px
+      #2a8a2a 8px,
+      var(--track-dark) 16px,
+      #1a6a1a 24px,
+      var(--track-green) 32px
     );
-  border-radius: 4px;
-  overflow: visible;
-  /* 레인 구분선 */
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, 0.1),
-    inset -1px 0 0 rgba(255, 255, 255, 0.1);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 64px;
+  animation: grassScroll 0.8s linear infinite;
+  z-index: 0;
+}
+
+/* 잔디 스크롤 애니메이션 */
+@keyframes grassScroll {
+  0% {
+    background-position-y: 0, 0, 0, 0;
+  }
+  100% {
+    background-position-y: 0, 0, 0, 64px;
+  }
+}
+
+/* 슬로우모션일 때 잔디 스크롤 느려짐 */
+.race-view.slow-mo .race-lane::before {
+  animation-duration: 3s;
 }
 
 .lane-marker {
@@ -921,74 +952,78 @@ body {
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  /* 도마뱀 기어가기 애니메이션 */
-  animation: geckoCrawl 0.25s ease-in-out infinite;
-  transform-origin: center center;
+  /* 도마뱀 기어가기 애니메이션 - 더 자연스러운 움직임 */
+  animation: geckoCrawl 0.35s ease-in-out infinite;
+  transform-origin: center bottom;
 }
 
-/* 도마뱀 기어가기 애니메이션 - 몸통이 S자로 움직이며 팔다리 휘젓기 */
+/* 도마뱀 기어가기 애니메이션 - 실제 도마뱀처럼 S자 웨이브 + 다리 움직임 */
 @keyframes geckoCrawl {
+  /* 오른쪽 앞다리 + 왼쪽 뒷다리 전진 */
   0% {
-    transform: rotate(-12deg) scaleX(0.92) scaleY(1.08) translateY(0);
+    transform: rotate(-8deg) skewX(-3deg) scaleX(0.94) scaleY(1.06) translateY(0) translateX(-2px);
   }
-  12.5% {
-    transform: rotate(-6deg) skewX(-5deg) scaleX(0.96) scaleY(1.04) translateY(-2px);
+  10% {
+    transform: rotate(-5deg) skewX(-6deg) scaleX(0.96) scaleY(1.04) translateY(-3px) translateX(-1px);
   }
+  /* 몸통 중앙 통과 - 푸시 */
   25% {
-    transform: rotate(0deg) skewX(-8deg) scaleX(1) scaleY(0.95) translateY(-4px);
+    transform: rotate(0deg) skewX(-8deg) scaleX(1) scaleY(0.96) translateY(-5px) translateX(0);
   }
-  37.5% {
-    transform: rotate(6deg) skewX(-3deg) scaleX(1.04) scaleY(0.92) translateY(-2px);
+  35% {
+    transform: rotate(3deg) skewX(-5deg) scaleX(1.02) scaleY(0.94) translateY(-3px) translateX(1px);
   }
+  /* 왼쪽 앞다리 + 오른쪽 뒷다리 전진 */
   50% {
-    transform: rotate(12deg) scaleX(1.08) scaleY(0.92) translateY(0);
+    transform: rotate(8deg) skewX(3deg) scaleX(1.06) scaleY(0.94) translateY(0) translateX(2px);
   }
-  62.5% {
-    transform: rotate(6deg) skewX(5deg) scaleX(1.04) scaleY(0.96) translateY(-2px);
+  60% {
+    transform: rotate(5deg) skewX(6deg) scaleX(1.04) scaleY(0.96) translateY(-3px) translateX(1px);
   }
+  /* 몸통 중앙 통과 - 푸시 */
   75% {
-    transform: rotate(0deg) skewX(8deg) scaleX(1) scaleY(1) translateY(-4px);
+    transform: rotate(0deg) skewX(8deg) scaleX(1) scaleY(0.98) translateY(-5px) translateX(0);
   }
-  87.5% {
-    transform: rotate(-6deg) skewX(3deg) scaleX(0.96) scaleY(1.04) translateY(-2px);
+  85% {
+    transform: rotate(-3deg) skewX(5deg) scaleX(0.98) scaleY(1.02) translateY(-3px) translateX(-1px);
   }
   100% {
-    transform: rotate(-12deg) scaleX(0.92) scaleY(1.08) translateY(0);
+    transform: rotate(-8deg) skewX(-3deg) scaleX(0.94) scaleY(1.06) translateY(0) translateX(-2px);
   }
 }
 
 /* 슬로우모션 상태에서 애니메이션 속도 감소 */
 .race-view.slow-mo .race-runner img {
-  animation: geckoCrawlSlow 1s ease-in-out infinite;
+  animation: geckoCrawlSlow 1.2s ease-in-out infinite;
 }
 
 @keyframes geckoCrawlSlow {
   0% {
-    transform: rotate(-8deg) scaleX(0.95) scaleY(1.05) translateY(0);
+    transform: rotate(-6deg) skewX(-2deg) scaleX(0.96) scaleY(1.04) translateY(0) translateX(-1px);
   }
-  12.5% {
-    transform: rotate(-4deg) skewX(-3deg) scaleX(0.97) scaleY(1.02) translateY(-1px);
+  10% {
+    transform: rotate(-3deg) skewX(-4deg) scaleX(0.98) scaleY(1.02) translateY(-2px) translateX(-0.5px);
   }
   25% {
-    transform: rotate(0deg) skewX(-5deg) scaleX(1) scaleY(0.98) translateY(-2px);
+    transform: rotate(0deg) skewX(-5deg) scaleX(1) scaleY(0.98) translateY(-3px) translateX(0);
   }
-  37.5% {
-    transform: rotate(4deg) skewX(-2deg) scaleX(1.02) scaleY(0.96) translateY(-1px);
+  35% {
+    transform: rotate(2deg) skewX(-3deg) scaleX(1.01) scaleY(0.97) translateY(-2px) translateX(0.5px);
   }
   50% {
-    transform: rotate(8deg) scaleX(1.05) scaleY(0.95) translateY(0);
+    transform: rotate(6deg) skewX(2deg) scaleX(1.04) scaleY(0.96) translateY(0) translateX(1px);
   }
-  62.5% {
-    transform: rotate(4deg) skewX(3deg) scaleX(1.02) scaleY(0.97) translateY(-1px);
+  60% {
+    transform: rotate(3deg) skewX(4deg) scaleX(1.02) scaleY(0.98) translateY(-2px) translateX(0.5px);
   }
   75% {
-    transform: rotate(0deg) skewX(5deg) scaleX(1) scaleY(1) translateY(-2px);
+    transform: rotate(0deg) skewX(5deg) scaleX(1) scaleY(0.99) translateY(-3px) translateX(0);
   }
-  87.5% {
-    transform: rotate(-4deg) skewX(2deg) scaleX(0.97) scaleY(1.02) translateY(-1px);
+  85% {
+    transform: rotate(-2deg) skewX(3deg) scaleX(0.99) scaleY(1.01) translateY(-2px) translateX(-0.5px);
   }
   100% {
-    transform: rotate(-8deg) scaleX(0.95) scaleY(1.05) translateY(0);
+    transform: rotate(-6deg) skewX(-2deg) scaleX(0.96) scaleY(1.04) translateY(0) translateX(-1px);
   }
 }
 
