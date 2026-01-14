@@ -1,109 +1,129 @@
 # Gecko Sprint
 
-Gecko Sprint is a real-time mini game where ten neon geckos dash to the finish line while the crowd (your players) slam a boost button to influence the race. The project ships with branding, sound design, gameplay loop, tests, and documentation so it can be launched locally right away.
+실시간 멀티플레이어 게코 레이싱 게임. 10마리의 네온 게코가 결승선을 향해 달리며, 플레이어들은 탭 버튼을 눌러 레이스에 영향을 줍니다.
 
-## Stack
+## 주요 기능
 
-- **Backend:** Node.js, Express, Socket.IO, TypeScript state machine (pnpm workspace package `@gecko/server`)
-- **Frontend:** Vite + vanilla TypeScript + Socket.IO client with CSS transform-driven animation
-- **Styling:** Custom Gecko Sprint brand system (glassy panels, countdown overlay, palette)
-- **Audio:** Web Audio API pops/fanfare generated at runtime (no external assets required)
-- **Tooling:** pnpm workspace, ESLint (flat config) + Prettier, Vitest suites for server & client
+- **개인 탭 시스템**: 게코 선택 → 3초 카운트다운 → 5초 탭핑 → 경주 대기
+- **코인/티켓 경제**: 탭으로 게코를 부스트하고 코인 보상 획득
+- **추천인 시스템**: 친구 초대로 보너스 코인 획득
+- **실시간 레이싱**: 슬로우 모션 효과와 카메라 추적
+- **출발선 미리보기**: 탭 완료 후 모든 게코가 대기하는 화면
+- **S-wave 애니메이션**: 실제 도마뱀처럼 움직이는 게코
 
-## Getting Started
+## 기술 스택
 
-1. Ensure pnpm is available (the helper installs it if missing):
+- **Backend:** Node.js, Express, Socket.IO, TypeScript
+- **Frontend:** Vite + TypeScript + CSS 애니메이션
+- **오디오:** Web Audio API (런타임 생성)
+- **도구:** pnpm workspace, ESLint, Prettier, Vitest
+
+## 시작하기
+
+1. pnpm 설치:
    ```bash
    npm run setup
-   # or
-   node scripts/ensure-pnpm.mjs
    ```
-2. Install workspace dependencies (server + client packages):
+
+2. 의존성 설치:
    ```bash
    pnpm install
    ```
-3. Launch the full experience (Socket.IO server + Vite dev server):
+
+3. 개발 서버 실행:
    ```bash
    pnpm run dev
    ```
-   - Backend lives on `http://localhost:4000`
-   - Frontend runs on `http://localhost:5173` and connects automatically
+   - 백엔드: `http://localhost:4000`
+   - 프론트엔드: `http://localhost:5173`
 
-### Environment
+### 환경 설정
 
-- The client auto-detects `http://localhost:4000` for Socket.IO. To point at a different host/port, create `client/.env` with `VITE_SOCKET_URL=<url>`.
-- Production build compiles the TypeScript server into `server/dist` and bundles the client into `client/dist`. Serve everything via `pnpm run build` followed by `pnpm run start`.
+- Socket.IO URL 변경: `client/.env`에 `VITE_SOCKET_URL=<url>` 설정
+- 프로덕션 빌드: `pnpm run build` → `pnpm run start`
 
-## Gameplay Rules
+## 게임 플로우
 
-- **Cycle:** Every round runs on a 120s cadence - LOBBY (88s) -> LOCKOUT (10s) -> CLICK_WINDOW (5s) -> RACING (12s, final 2s in slow motion) -> RESULTS (5s) -> repeat.
-- **Participation:** Players choose one of the ten geckos during LOBBY. Once LOCKOUT starts, no new joins or swaps are accepted until the next lobby.
-- **Click Aggregation:** Only clicks during the CLICK_WINDOW are counted. Each player is rate-limited to **50 clicks per second**, and the server broadcasts progress snapshots every 200 ms.
-- **Race Resolution:** Track length L = 100. Each gecko receives speed v = 0.2 + 0.8 * (clicks / maxClicksInRound) (fraction of the track per second). The backend integrates distance to emit progress (0-1), clickTotals, and an isSlowMo flag for the final two seconds.
-- **Bots:** 6-12 bot spectators are spawned per human racer in each lobby. Bots pick random geckos and click with a +/-15% bias, but only during the click window.
-- **Rejoin:** Clients persist a playerId; reconnecting with the same id restores nickname, selections, and stats.
-## Scripts
-
-| Command | Description |
-| --- | --- |
-| `pnpm run dev` | Runs the TypeScript server (`pnpm --filter @gecko/server run dev`) and Vite dev server concurrently |
-| `pnpm run dev:server` | Watches only the Express + Socket.IO backend |
-| `pnpm run dev:client` | Starts only the Vite development server |
-| `pnpm run lint` | ESLint (TypeScript-aware) on `server/src` and `server/tests` |
-| `pnpm run format` | Formats server TypeScript with Prettier |
-| `pnpm run build` | Compiles the server (`tsc`) and builds the client bundle |
-| `pnpm run start` | Serves the production client through Express (`node server/dist/index.js`) |
-| `pnpm run test` | Runs lint, backend Vitest suite, and client Vitest suite |
-| `pnpm run test:server` | Runs Vitest on the backend game loop |
-| `pnpm run test:client` | Runs Vitest assertions for client utilities |
-
-## Code Tour
-
-- `server/src/types.ts` - game configuration, lobby, and snapshot typing.
-- `server/src/gameLoop.ts` - authoritative state machine (phase timing, click-to-speed math, slow-motion staging).
-- `server/src/lobby.ts` - player registry with selection locks, reconnection tracking, and participation stats.
-- `server/src/bots.ts` - AI boosters that rebalance each lobby and click with random biases.
-- `server/src/index.ts` - Express + Socket.IO bootstrap that honours stored player IDs and streams state.
-- `server/tests/gameManager.test.ts` - Vitest specs covering phase transitions, click-based speed, and rate limiting.
-- `client/src/store.ts` - observable client state (snapshots, lobby, toasts).
-- `client/src/api.ts` - Socket.IO bridge, reconnection handshake, and audio feedback.
-- `client/src/ui.ts` - DOM renderer for lineup cards, command center, countdown overlay, and telemetry.
-- `client/src/animation.ts` - requestAnimationFrame-driven transform animator for race progress.
-- `client/src/assets/` - brand logo plus ten colour-coded gecko silhouettes.
-
-## Testing
-
-```bash
-pnpm run test              # lint + backend + client suites
-pnpm run test:server       # backend engine tests
-pnpm run test:client       # client-side unit tests
+```
+LOBBY (88초) → 개인 탭 → RACING (12초) → RESULTS (5초) → 반복
 ```
 
-Vitest uses the Node environment for server specs and JSDOM for client utilities. Backend tests use fake timers, deterministic speed ranges, and rate-limit assertions.
+### 개인 탭 시스템
 
-## Production Build & Deployment
+1. **게코 선택**: LOBBY에서 10마리 중 1마리 선택
+2. **카운트다운**: 3초 카운트다운 (3, 2, 1)
+3. **탭핑**: 5초 동안 최대한 빠르게 탭
+4. **경주 대기**: 출발선에서 다른 플레이어 대기
+5. **레이싱**: 모든 탭이 집계되어 게코 속도 결정
 
-1. Create the optimized bundles:
-   ```bash
-   pnpm run build
-   ```
-2. Launch the compiled server pointing at the built client:
-   ```bash
-   pnpm run start
-   ```
-   Express serves `client/dist` and hosts the Socket.IO endpoint on the same port.
+### 레이스 규칙
 
-Enjoy sprinting with the geckos!
+- **속도 공식**: `v = 0.2 + 0.8 * (clicks / maxClicks)`
+- **슬로우 모션**: 레이스 마지막 2초
+- **카메라 추적**: 내 게코를 중심으로 추적
+- **봇**: 인간 플레이어당 6-12개 봇 생성
 
+### 경제 시스템
+
+| 항목 | 설명 |
+| --- | --- |
+| 티켓 | 탭 참여에 필요 (일일 무료 지급) |
+| 코인 | 레이스 순위에 따른 보상 |
+| 추천인 | 코드 공유로 양쪽 보너스 |
+
+## 스크립트
+
+| 명령어 | 설명 |
+| --- | --- |
+| `pnpm run dev` | 개발 서버 실행 (서버 + 클라이언트) |
+| `pnpm run dev:server` | 백엔드만 실행 |
+| `pnpm run dev:client` | 프론트엔드만 실행 |
+| `pnpm run build` | 프로덕션 빌드 |
+| `pnpm run start` | 프로덕션 서버 실행 |
+| `pnpm run test` | 전체 테스트 |
+| `pnpm run lint` | ESLint 검사 |
+| `pnpm run format` | Prettier 포맷팅 |
+
+## 프로젝트 구조
+
+```
+racing/
+├── client/                 # 프론트엔드
+│   ├── src/
+│   │   ├── api.ts         # Socket.IO 통신
+│   │   ├── store.ts       # 상태 관리
+│   │   ├── ui.ts          # UI 렌더링
+│   │   ├── animation.ts   # 레이스 애니메이션
+│   │   └── styles.css     # 스타일시트
+│   └── index.html
+├── server/                 # 백엔드
+│   ├── src/
+│   │   ├── index.ts       # Express + Socket.IO
+│   │   ├── gameLoop.ts    # 게임 상태 머신
+│   │   ├── lobby.ts       # 플레이어 관리
+│   │   ├── bots.ts        # AI 봇
+│   │   └── types.ts       # 타입 정의
+│   └── tests/
+└── doc/                    # 디자인 문서
+```
 
 ## Socket Events
 
-| Event | Direction | Payload | Description |
-| --- | --- | --- | --- |
-| welcome | server -> client | { id, nickname, selectionId? } | Sent on connect (or reconnect) with the server-assigned player id and any saved selection. |
-| state | server -> client | GameStateMessage | Full snapshot used for lobby details, timers, and UI bootstrapping. |
-| aceProgress | server -> client | { progress: number[]; isSlowMo: boolean } | Broadcast every 200 ms during racing to animate the 10-track progress meters. |
-| oost:result | server -> client | { applied: boolean; reason? } | Result of a boost attempt (ate_limited, invalid_phase, invalid_lizard). |
-| player:update | client -> server | { nickname } | Updates the player nickname (LOBBY only). |
-| player:select | client -> server | { lizardId } | Submits a selection while in LOBBY; ignored after LOCKOUT. |
-| oost | client -> server | { lizardId } | Attempts to register a click during the CLICK_WINDOW (subject to rate limit). |
+| Event | 방향 | 설명 |
+| --- | --- | --- |
+| `welcome` | S→C | 연결 시 플레이어 정보 전송 |
+| `state` | S→C | 게임 상태 스냅샷 |
+| `raceProgress` | S→C | 레이스 진행 상황 (200ms 간격) |
+| `boost:result` | S→C | 탭 결과 |
+| `player:result` | S→C | 레이스 결과 및 보상 |
+| `player:select` | C→S | 게코 선택 |
+| `boost` | C→S | 탭 전송 |
+| `wallet:claim` | C→S | 일일 티켓 수령 |
+
+## 최근 업데이트
+
+- 레이스 트랙 통 바닥 (주로 구분선 제거)
+- 경주 대기 화면 (출발선 미리보기)
+- 게코 S-wave 애니메이션
+- 카메라 추적 시스템
+- 개인 탭 카운트다운/카운트업 표시
