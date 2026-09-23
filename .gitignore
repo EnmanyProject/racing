@@ -6,3 +6,4 @@ server/dist/
 .vscode/
 .DS_Store
 *.log
+puzzle/dist/
