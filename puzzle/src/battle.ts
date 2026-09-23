@@ -24,13 +24,13 @@ export function createKnight(): Knight {
   return { maxHp: 1500, hp: 1500, atk: 150, mag: 140, rcv: 170, def: 200, shield: 0, energy: 0, level: 1 };
 }
 
-/** 몬스터 체질: 물리/마법 피해 배율이 다르다 */
+/** 용의 체질: 물리/마법 피해 배율이 다르다 */
 export type EnemyKind = 'beast' | 'armored' | 'spirit';
 
 export const RESIST: Record<EnemyKind, { phys: number; magic: number; label: string }> = {
-  beast: { phys: 1, magic: 1, label: '야수 · 약점 없음' },
-  armored: { phys: 0.5, magic: 1.5, label: '갑옷 · 물리↓ 마법↑' },
-  spirit: { phys: 1.5, magic: 0.5, label: '정령 · 물리↑ 마법↓' },
+  beast: { phys: 1, magic: 1, label: '야생룡 · 약점 없음' },
+  armored: { phys: 0.5, magic: 1.5, label: '철갑룡 · 물리↓ 마법↑' },
+  spirit: { phys: 1.5, magic: 0.5, label: '영룡 · 물리↑ 마법↓' },
 };
 
 export interface Enemy {
@@ -183,17 +183,17 @@ export function createSpells(): Spell[] {
 }
 
 const MONSTERS: [string, EnemyKind][] = [
-  ['굶주린 늑대', 'beast'],
-  ['멧돼지 전사', 'beast'],
-  ['강철 골렘', 'armored'],
-  ['해골 기사', 'armored'],
-  ['불꽃 정령', 'spirit'],
-  ['그림자 망령', 'spirit'],
+  ['붉은 와이번', 'beast'],
+  ['화염 드레이크', 'beast'],
+  ['강철비늘 드레이크', 'armored'],
+  ['바위등 용', 'armored'],
+  ['유령 비룡', 'spirit'],
+  ['별빛 영룡', 'spirit'],
 ];
 const BOSSES: [string, EnemyKind][] = [
-  ['오거 족장', 'beast'],
-  ['흑철 거인', 'armored'],
-  ['심연의 리치', 'spirit'],
+  ['고룡 바하르', 'beast'],
+  ['흑철 고룡', 'armored'],
+  ['심연의 망령룡', 'spirit'],
 ];
 
 /** 5번째마다 보스. 만날수록 강해진다. */

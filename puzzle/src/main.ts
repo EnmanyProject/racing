@@ -1,6 +1,7 @@
 // Rune Knight: 렌더링, 입력, 턴 진행
 // 상단: 횡으로 전진하는 기사와 몬스터 / 하단: 기사를 지원하는 룬 퍼즐
 
+import { BREATH_COLOR, drawDragon, mouthOffset } from './dragon';
 import {
   COLS,
   ROWS,
@@ -29,7 +30,6 @@ import {
   takeHit,
   type Action,
   type Enemy,
-  type EnemyKind,
   type Knight,
   type Spell,
 } from './battle';
@@ -85,7 +85,7 @@ interface Float {
 }
 
 interface Fx {
-  type: 'slash' | 'bolt' | 'heal' | 'shield' | 'energy' | 'finisher' | 'hit';
+  type: 'slash' | 'bolt' | 'heal' | 'shield' | 'energy' | 'finisher' | 'hit' | 'breath';
   t0: number;
   dur: number;
   heavy?: boolean;
@@ -297,6 +297,7 @@ function afterActions(now: number): void {
   enemy.turns--;
   if (enemy.turns <= 0) {
     enemyLungeT = now;
+    fx.push({ type: 'breath', t0: now, dur: 520 });
     setPhase('enemy', now);
     return;
   }
@@ -490,7 +491,7 @@ function update(dt: number, now: number): void {
       stepActions(now);
       break;
     case 'enemy':
-      if (now - phaseT >= 220 && enemyLungeT >= phaseT && knightHurtT < phaseT) enemyStrike(now);
+      if (now - phaseT >= 300 && enemyLungeT >= phaseT && knightHurtT < phaseT) enemyStrike(now);
       if (now - phaseT > 700) setPhase(knight.hp <= 0 ? 'lost' : 'idle', now);
       break;
     case 'defeat':
@@ -683,88 +684,41 @@ function drawKnight(now: number): void {
 }
 
 /** 0→1→0 형태의 돌진 곡선 */
+function enemyScale(): number {
+  return enemy.boss ? 1.15 : 0.92;
+}
+
 function lungeCurve(t: number, dur: number): number {
   if (t < 0 || t > dur) return 0;
   return Math.sin((t / dur) * Math.PI);
 }
 
-const KIND_COLOR: Record<EnemyKind, [string, string]> = {
-  beast: ['#d8a070', '#7a4a26'],
-  armored: ['#c8d0dc', '#4a5468'],
-  spirit: ['#c8a8ff', '#5a2ea8'],
-};
-
 function drawEnemy(now: number): void {
   const dying = phase === 'defeat' ? Math.min(1, (now - phaseT) / 600) : 0;
-  const [light, dark] = KIND_COLOR[enemy.kind];
-  const S = enemy.boss ? 1.45 : 1;
-  const lunge = lungeCurve(now - enemyLungeT, 300) * -70;
+  const S = enemyScale();
+  const jaw = lungeCurve(now - enemyLungeT, 420);
   const hurt = now - enemyHurtT < 200;
-  const x = enemyX + lunge + (hurt ? rand(-4, 4) : 0);
-  const float = enemy.kind === 'spirit' ? -18 + Math.sin(now / 300) * 6 : 0;
-  const bob = Math.sin(now / 400) * 2;
+  const x = enemyX - jaw * 40 + (hurt ? rand(-4, 4) : 0);
+  const hover = enemy.kind === 'spirit' ? -14 + Math.sin(now / 300) * 6 : 0;
+
+  // 그림자
+  ctx.fillStyle = '#0006';
+  ctx.beginPath();
+  ctx.ellipse(x + 20 * S, GROUND_Y + 2, 70 * S * (1 - dying * 0.5), 8, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.save();
   ctx.globalAlpha = 1 - dying;
-  ctx.translate(x, GROUND_Y + float + bob);
-  ctx.scale(S * (1 - dying * 0.3), S * (1 - dying * 0.3));
-
-  const g = ctx.createRadialGradient(-10, -50, 5, 0, -35, 50);
-  g.addColorStop(0, hurt ? '#fff' : light);
-  g.addColorStop(1, dark);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  if (enemy.kind === 'beast') {
-    ctx.ellipse(0, -30, 38, 30, 0, 0, Math.PI * 2);
-    ctx.moveTo(-24, -52);
-    ctx.lineTo(-30, -74);
-    ctx.lineTo(-10, -58);
-    ctx.moveTo(8, -58);
-    ctx.lineTo(22, -76);
-    ctx.lineTo(26, -52);
-  } else if (enemy.kind === 'armored') {
-    ctx.roundRect(-32, -72, 64, 72, 10);
-  } else {
-    ctx.arc(0, -44, 32, Math.PI, 0);
-    ctx.lineTo(32, -6);
-    for (let i = 0; i < 4; i++) {
-      const wx = 32 - (i + 1) * 16;
-      ctx.quadraticCurveTo(wx + 8, -6 + (i % 2 ? -10 : 10) + Math.sin(now / 150 + i) * 3, wx, -6);
-    }
-    ctx.closePath();
-  }
-  ctx.fill();
-
-  // 눈 (기사를 향해 왼쪽을 봄)
-  ctx.fillStyle = enemy.kind === 'armored' ? '#ff9a2a' : enemy.kind === 'spirit' ? '#6be3ff' : '#ff3a3a';
-  if (enemy.kind === 'armored') {
-    ctx.fillRect(-26, -54, 34, 6);
-  } else {
-    for (const ex of [-20, -2]) {
-      ctx.beginPath();
-      ctx.arc(ex, -40, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  if (enemy.boss) {
-    ctx.fillStyle = '#ffd24a';
-    ctx.beginPath();
-    ctx.moveTo(-18, -74);
-    ctx.lineTo(-12, -90);
-    ctx.lineTo(-4, -78);
-    ctx.lineTo(0, -94);
-    ctx.lineTo(4, -78);
-    ctx.lineTo(12, -90);
-    ctx.lineTo(18, -74);
-    ctx.fill();
-  }
+  ctx.translate(x, GROUND_Y + hover + dying * 20);
+  ctx.scale(S, S);
+  drawDragon(ctx, { kind: enemy.kind, boss: enemy.boss, now, jaw, hurt });
   ctx.restore();
 
   if (phase === 'defeat') return;
 
   // 이름, 체질, HP, 공격 예고
-  const cx = Math.min(W - 90, x);
-  const top = 56;
+  const cx = Math.min(W - 90, enemyX);
+  const top = 50;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#fff';
@@ -876,6 +830,32 @@ function drawFx(now: number): void {
         ctx.lineTo(ex + 60, ey + 40);
         ctx.stroke();
         break;
+      case 'breath': {
+        const [core, edge] = BREATH_COLOR[enemy.kind];
+        const S = enemyScale();
+        const m = mouthOffset(1);
+        const mx = enemyX - 40 + m.x * S;
+        const my = GROUND_Y + m.y * S;
+        const tx = KNIGHT_X;
+        const ty = GROUND_Y - 45;
+        ctx.globalAlpha = 1;
+        for (let i = 0; i < 14; i++) {
+          const k = Math.min(1, t * 1.6 - i * 0.04);
+          if (k <= 0) continue;
+          const px = mx + (tx - mx) * k;
+          const py = my + (ty - my) * k + Math.sin(i * 1.7 + now / 40) * 8 * k;
+          const r = 6 + k * 18;
+          const grd = ctx.createRadialGradient(px, py, 0, px, py, r);
+          grd.addColorStop(0, core);
+          grd.addColorStop(1, edge + '00');
+          ctx.fillStyle = grd;
+          ctx.globalAlpha = (1 - t) * 0.9;
+          ctx.beginPath();
+          ctx.arc(px, py, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
       case 'hit':
         ctx.fillStyle = '#ff3a3a55';
         ctx.fillRect(0, SCENE_Y, W, GROUND_Y - SCENE_Y + 30);
