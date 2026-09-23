@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { COLS, ROWS, Orb, clearCombo, createBoard, findCombos, seededRng, settle, type Grid } from './board';
-import { comboMultiplier, computeAttack, createFloors, createTeam, elementMultiplier } from './battle';
+import { COLS, ROWS, Orb, clearCombo, createBoard, findCombos, seededRng, settle, type Combo, type Grid } from './board';
+import {
+  comboMultiplier,
+  createEnemy,
+  createKnight,
+  enemyIntent,
+  resolveTurn,
+  takeHit,
+  type Enemy,
+} from './battle';
 
-const F = Orb.Fire, W = Orb.Water, G = Orb.Wood, L = Orb.Light, D = Orb.Dark, H = Orb.Heart;
+const S = Orb.Sword, M = Orb.Magic, H = Orb.Heal, D = Orb.Shield, E = Orb.Energy;
 const grid = (rows: number[][]): Grid => rows.map((r) => r.map((orb) => ({ orb: orb as Orb, plus: false })));
+const combo = (orb: Orb, n = 3, fullRow = false): Combo => ({
+  orb,
+  cells: Array.from({ length: n }, (_, i) => ({ r: 0, c: i })),
+  plusCount: 0,
+  fullRow,
+});
+const enemyOf = (kind: Enemy['kind']): Enemy => ({ ...createEnemy(0, seededRng(1)), kind });
 
 describe('board', () => {
   it('createBoard has no initial combos', () => {
@@ -12,23 +27,22 @@ describe('board', () => {
 
   it('finds horizontal and vertical matches as separate combos', () => {
     const g = grid([
-      [F, F, F, W, G, L],
-      [W, G, L, W, D, H],
-      [G, L, D, W, H, F],
-      [L, D, H, G, F, W],
-      [D, H, F, L, W, G],
+      [S, S, S, M, H, D],
+      [M, H, D, M, E, S],
+      [H, D, E, M, S, H],
+      [D, E, S, H, H, D],
+      [E, S, H, D, M, E],
     ]);
-    const combos = findCombos(g);
-    expect(combos.map((c) => [c.orb, c.cells.length])).toEqual([[F, 3], [W, 3]]);
+    expect(findCombos(g).map((c) => [c.orb, c.cells.length])).toEqual([[S, 3], [M, 3]]);
   });
 
-  it('merges touching matches of the same color into one combo (L shape)', () => {
+  it('merges touching matches of the same orb into one combo (L shape)', () => {
     const g = grid([
-      [F, W, G, L, D, H],
-      [F, G, L, D, H, W],
-      [F, F, F, W, G, L],
-      [W, L, D, H, W, G],
-      [G, D, H, W, L, D],
+      [S, M, H, D, E, M],
+      [S, H, D, E, M, H],
+      [S, S, S, M, H, D],
+      [M, D, E, H, M, E],
+      [H, E, D, M, D, S],
     ]);
     const combos = findCombos(g);
     expect(combos).toHaveLength(1);
@@ -38,32 +52,29 @@ describe('board', () => {
   it('detects a full row', () => {
     const g = grid([
       [H, H, H, H, H, H],
-      [W, G, L, D, F, W],
-      [G, L, D, F, W, G],
-      [L, D, F, W, G, L],
-      [D, F, W, G, L, D],
+      [M, S, D, E, S, M],
+      [S, D, E, S, M, S],
+      [D, E, S, M, D, D],
+      [E, S, M, D, E, E],
     ]);
-    const [c] = findCombos(g);
-    expect(c.fullRow).toBe(true);
+    expect(findCombos(g)[0].fullRow).toBe(true);
   });
 
   it('surge leaves an enhanced orb at the bottom-left cell of 5+ combos', () => {
     const g = grid([
-      [F, F, F, F, F, W],
-      [W, G, L, D, H, G],
-      [G, L, D, H, W, L],
-      [L, D, H, W, G, D],
-      [D, H, W, G, L, H],
+      [S, S, S, S, S, M],
+      [M, H, D, E, M, H],
+      [H, D, E, M, H, D],
+      [D, E, M, H, D, E],
+      [E, M, H, D, E, M],
     ]);
-    const kept = clearCombo(g, findCombos(g)[0]);
-    expect(kept).toEqual({ r: 0, c: 0 });
-    expect(g[0][0]).toEqual({ orb: F, plus: true });
+    expect(clearCombo(g, findCombos(g)[0])).toEqual({ r: 0, c: 0 });
+    expect(g[0][0]).toEqual({ orb: S, plus: true });
     expect(g[0].slice(1, 5)).toEqual([null, null, null, null]);
   });
 
   it('settle fills every cell and reports drops', () => {
     const g = createBoard(seededRng(1));
-    const below = g[4][2];
     g[4][2] = null;
     g[3][2] = null;
     const keep = g[2][2];
@@ -73,32 +84,65 @@ describe('board', () => {
     expect(drops[4][2]).toBe(2);
     expect(drops[0][2]).toBe(2);
     expect(drops[0][0]).toBe(0);
-    expect(below).not.toBeNull();
   });
 });
 
 describe('battle', () => {
-  it('combo multiplier and element advantage', () => {
-    expect(comboMultiplier(1)).toBe(1);
-    expect(comboMultiplier(5)).toBe(2);
-    expect(elementMultiplier(F, G)).toBe(2);
-    expect(elementMultiplier(G, F)).toBe(0.5);
-    expect(elementMultiplier(L, D)).toBe(2);
-    expect(elementMultiplier(F, L)).toBe(1);
+  it('maps each orb role to a knight action in combo order', () => {
+    const k = createKnight();
+    const { actions, comboMult, harmony } = resolveTurn(k, [combo(S), combo(H), combo(D)], enemyOf('beast'));
+    expect(comboMult).toBe(comboMultiplier(3));
+    expect(harmony).toBe(false);
+    expect(actions.map((a) => a.type)).toEqual(['phys', 'heal', 'shield']);
+    expect(actions[0].value).toBe(Math.round(k.atk * 1.5));
+    expect(actions[1].value).toBe(Math.round(k.rcv * 1.5));
+    expect(actions[2].value).toBe(Math.round(k.def * 1.5));
   });
 
-  it('computes damage and healing per hero', () => {
-    const team = createTeam();
-    const enemy = createFloors()[1]; // Wood
-    const combos = [
-      { orb: F, cells: Array(3).fill({ r: 0, c: 0 }), plusCount: 0, fullRow: false },
-      { orb: H, cells: Array(4).fill({ r: 0, c: 0 }), plusCount: 0, fullRow: false },
-    ];
-    const res = computeAttack(team, combos, enemy);
-    // 불 영웅: 140 * 1.0 * 콤보1.25 * 상성2
-    expect(res.perHero[0]).toBe(350);
-    expect(res.perHero.slice(1)).toEqual([0, 0, 0, 0]);
-    const rcv = team.reduce((s, h) => s + h.rcv, 0);
-    expect(res.heal).toBe(Math.round(rcv * 1.25 * 1.25));
+  it('enemy kind changes physical vs magic effectiveness', () => {
+    const k = createKnight();
+    const armored = resolveTurn(k, [combo(S), combo(M)], enemyOf('armored')).actions;
+    const spirit = resolveTurn(k, [combo(S), combo(M)], enemyOf('spirit')).actions;
+    expect(armored[0].value).toBeLessThan(spirit[0].value); // 검: 갑옷에 약함
+    expect(armored[1].value).toBeGreaterThan(spirit[1].value); // 마법: 정령에 약함
+  });
+
+  it('harmony bonus applies when 4+ orb kinds are used', () => {
+    const k = createKnight();
+    const plain = resolveTurn(k, [combo(S), combo(S), combo(S), combo(H)], enemyOf('beast'));
+    const mixed = resolveTurn(k, [combo(S), combo(M), combo(D), combo(H)], enemyOf('beast'));
+    expect(plain.harmony).toBe(false);
+    expect(mixed.harmony).toBe(true);
+    expect(mixed.actions[0].value).toBe(Math.round(k.atk * comboMultiplier(4) * 1.2));
+  });
+
+  it('energy charges without combo multiplier', () => {
+    const { actions } = resolveTurn(createKnight(), [combo(E), combo(S), combo(S)], enemyOf('beast'));
+    expect(actions[0]).toEqual({ type: 'energy', value: 20 });
+  });
+
+  it('shield absorbs one hit then disappears', () => {
+    const k = createKnight();
+    k.shield = 300;
+    expect(takeHit(k, 200)).toBe(0);
+    expect(k.shield).toBe(0);
+    expect(takeHit(k, 200)).toBe(200);
+    expect(k.hp).toBe(k.maxHp - 200);
+  });
+
+  it('every third enemy attack is a telegraphed heavy attack', () => {
+    const e = createEnemy(0, seededRng(3));
+    expect(enemyIntent(e).heavy).toBe(false);
+    e.attacks = 2;
+    expect(enemyIntent(e)).toEqual({ heavy: true, damage: Math.round(e.atk * 1.8) });
+  });
+
+  it('every fifth enemy is a stronger boss', () => {
+    const rng = seededRng(4);
+    const normal = createEnemy(3, rng);
+    const boss = createEnemy(4, rng);
+    expect(boss.boss).toBe(true);
+    expect(normal.boss).toBe(false);
+    expect(boss.maxHp).toBeGreaterThan(normal.maxHp * 2);
   });
 });

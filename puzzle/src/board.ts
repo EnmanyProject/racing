@@ -3,20 +3,20 @@
 export const COLS = 6;
 export const ROWS = 5;
 
+/** 룬 = 기사를 돕는 역할 */
 export const Orb = {
-  Fire: 0,
-  Water: 1,
-  Wood: 2,
-  Light: 3,
-  Dark: 4,
-  Heart: 5,
+  Sword: 0, // 물리 공격
+  Magic: 1, // 마법 공격
+  Heal: 2, // 회복
+  Shield: 3, // 보호막
+  Energy: 4, // 필살 게이지
 } as const;
 export type Orb = (typeof Orb)[keyof typeof Orb];
-export const ORB_TYPES = 6;
+export const ORB_TYPES = 5;
 
 export interface Cell {
   orb: Orb;
-  /** 강화 룬: 콤보에 포함되면 데미지 보너스 */
+  /** 강화 룬: 콤보에 포함되면 효과 보너스 */
   plus: boolean;
 }
 

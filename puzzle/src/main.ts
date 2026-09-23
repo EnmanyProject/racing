@@ -1,4 +1,5 @@
-// Rune Drift: 렌더링, 입력, 턴 진행
+// Rune Knight: 렌더링, 입력, 턴 진행
+// 상단: 횡으로 전진하는 기사와 몬스터 / 하단: 기사를 지원하는 룬 퍼즐
 
 import {
   COLS,
@@ -15,39 +16,63 @@ import {
   type Pos,
 } from './board';
 import {
+  RESIST,
   TEMPO_COMBOS,
-  applySkill,
-  computeAttack,
-  createFloors,
-  createTeam,
+  applySpell,
+  createEnemy,
+  createKnight,
+  createSpells,
+  enemyIntent,
+  finisherDamage,
+  levelUp,
+  resolveTurn,
+  takeHit,
+  type Action,
   type Enemy,
-  type Hero,
+  type EnemyKind,
+  type Knight,
+  type Spell,
 } from './battle';
 
 const W = 480;
 const H = 800;
 const CELL = 80;
 const BOARD_Y = H - ROWS * CELL; // 400
-const TEAM_Y = 298;
+const SCENE_Y = 40;
+const GROUND_Y = 262;
+const KNIGHT_X = 110;
+const ENEMY_X = 350;
+const SPELL_Y = 298;
 const SLOT_W = 88;
 const SLOT_GAP = 5;
-const HPBAR_Y = 380;
+const HPBAR_Y = 377;
+const ENERGY_Y = 392;
 
 const DRAG_MS = 5000;
 const CLEAR_STEP_MS = 260;
 const FADE_MS = 240;
 const SLIDE_SPEED = 1400; // px/s
+const WALK_SPEED = 170; // px/s
+const ACTION_MS = 330;
 
 const ORB_COLOR: Record<Orb, [string, string]> = {
-  [Orb.Fire]: ['#ffb199', '#e8391c'],
-  [Orb.Water]: ['#a8dcff', '#1b7fe0'],
-  [Orb.Wood]: ['#b6f5b0', '#23a347'],
-  [Orb.Light]: ['#fff4b0', '#e8b100'],
-  [Orb.Dark]: ['#e0b8ff', '#7a2ed6'],
-  [Orb.Heart]: ['#ffd0e6', '#e8458f'],
+  [Orb.Sword]: ['#ffb199', '#d9321a'],
+  [Orb.Magic]: ['#d7c2ff', '#6a3ce0'],
+  [Orb.Heal]: ['#ffd0e6', '#e8458f'],
+  [Orb.Shield]: ['#b8f0e6', '#1f9e8a'],
+  [Orb.Energy]: ['#fff4b0', '#e0a800'],
+};
+const ORB_NAME: Record<Orb, string> = {
+  [Orb.Sword]: '검',
+  [Orb.Magic]: '마법',
+  [Orb.Heal]: '힐',
+  [Orb.Shield]: '방패',
+  [Orb.Energy]: '기력',
 };
 
-type Phase = 'idle' | 'drag' | 'clear' | 'fall' | 'attack' | 'next' | 'won' | 'lost';
+type Phase = 'walk' | 'idle' | 'drag' | 'clear' | 'fall' | 'act' | 'enemy' | 'defeat' | 'lost';
+
+type QueuedAction = Action | { type: 'finisher'; value: number };
 
 interface Float {
   text: string;
@@ -59,9 +84,11 @@ interface Float {
   dur: number;
 }
 
-interface Fading {
-  cells: { r: number; c: number; cell: Cell }[];
+interface Fx {
+  type: 'slash' | 'bolt' | 'heal' | 'shield' | 'energy' | 'finisher' | 'hit';
   t0: number;
+  dur: number;
+  heavy?: boolean;
 }
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -69,44 +96,66 @@ const ctx = canvas.getContext('2d')!;
 
 // ---- 게임 상태 ----
 let grid: Grid;
-let team: Hero[];
-let floors: Enemy[];
-let floorIdx: number;
+let knight: Knight;
+let spells: Spell[];
 let enemy: Enemy;
-let enemyHpShown: number;
-let maxHp: number;
-let hp: number;
-let hpShown: number;
-let phase: Phase;
+let enemyIndex = 0;
+let enemyX = ENEMY_X;
+let kills = 0;
+let best = loadBest();
+let enemyHpShown = 0;
+let hpShown = 0;
+let energyShown = 0;
+let phase: Phase = 'walk';
 let phaseT = 0;
+let scroll = 0;
 let offs: { x: number; y: number }[][];
 let drag: { pos: Pos; cell: Cell; px: number; py: number; t0: number | null } | null = null;
 let pending: Combo[] = [];
 let turnCombos: Combo[] = [];
 let nextClearAt = 0;
-let fading: Fading[] = [];
+let fading: { cells: { r: number; c: number; cell: Cell }[]; t0: number }[] = [];
 let floats: Float[] = [];
+let fx: Fx[] = [];
+let actions: QueuedAction[] = [];
+let nextActionAt = 0;
+let harmony = false;
 let toast: { text: string; t0: number } | null = null;
 let shakeUntil = 0;
-let heroFlash: number[] = [];
+let spellFlash: number[] = [];
+let knightLungeT = -1e9;
+let knightHurtT = -1e9;
+let enemyLungeT = -1e9;
+let enemyHurtT = -1e9;
 
 const rng = Math.random;
 
 function resetGame(): void {
+  const now = performance.now();
   grid = createBoard(rng);
-  team = createTeam();
-  floors = createFloors();
-  floorIdx = 0;
-  enemy = floors[0];
-  enemyHpShown = enemy.hp;
-  maxHp = team.reduce((s, h) => s + h.hp, 0);
-  hp = hpShown = maxHp;
+  knight = createKnight();
+  spells = createSpells();
+  spellFlash = spells.map(() => -1e9);
+  enemyIndex = 0;
+  kills = 0;
+  scroll = 0;
+  hpShown = knight.hp;
+  energyShown = 0;
   offs = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => ({ x: 0, y: 0 })));
-  heroFlash = team.map(() => 0);
   fading = [];
   floats = [];
+  fx = [];
   drag = null;
-  setPhase('idle', performance.now());
+  turnCombos = [];
+  spawnEnemy(now);
+}
+
+function spawnEnemy(now: number): void {
+  enemy = createEnemy(enemyIndex, rng);
+  enemyHpShown = enemy.hp;
+  enemyX = W + 90;
+  setPhase('walk', now);
+  if (enemy.boss) toastMsg(`보스 출현: ${enemy.name}`, now);
 }
 
 function setPhase(p: Phase, now: number): void {
@@ -114,7 +163,7 @@ function setPhase(p: Phase, now: number): void {
   phaseT = now;
 }
 
-// ---- 턴 진행 ----
+// ---- 퍼즐 해결 ----
 function beginResolve(now: number): void {
   pending = findCombos(grid);
   if (!pending.length) {
@@ -140,80 +189,132 @@ function stepClear(now: number): void {
   const surge = clearCombo(grid, combo);
   const cx = combo.cells.reduce((s, p) => s + p.c, 0) / combo.cells.length;
   const cy = combo.cells.reduce((s, p) => s + p.r, 0) / combo.cells.length;
-  floats.push({
-    text: `${turnCombos.length} Combo`,
-    x: (cx + 0.5) * CELL,
-    y: BOARD_Y + (cy + 0.5) * CELL,
-    color: '#fff',
-    size: 22,
-    t0: now,
-    dur: 700,
-  });
-  if (surge) {
-    floats.push({
-      text: 'SURGE!',
-      x: (surge.c + 0.5) * CELL,
-      y: BOARD_Y + surge.r * CELL + 10,
-      color: '#ffe066',
-      size: 18,
-      t0: now,
-      dur: 800,
-    });
-  }
+  addFloat(`${ORB_NAME[combo.orb]} ${turnCombos.length}`, (cx + 0.5) * CELL, BOARD_Y + (cy + 0.5) * CELL, '#fff', 20, now, 700);
+  if (surge) addFloat('SURGE!', (surge.c + 0.5) * CELL, BOARD_Y + surge.r * CELL + 10, '#ffe066', 18, now, 800);
   beep(330 + turnCombos.length * 55);
   nextClearAt = now + (pending.length ? CLEAR_STEP_MS : FADE_MS);
 }
 
+/** 퍼즐 결과를 기사의 행동 큐로 변환 */
 function endResolve(now: number): void {
-  const extra = turnCombos.length >= TEMPO_COMBOS ? 1 : 0;
-  for (const h of team) h.cd = Math.max(0, h.cd - 1 - extra);
-  if (extra) toastMsg('TEMPO! 스킬 쿨다운 추가 감소', now);
+  const tempo = turnCombos.length >= TEMPO_COMBOS ? 1 : 0;
+  for (const s of spells) s.cd = Math.max(0, s.cd - 1 - tempo);
+  if (tempo) toastMsg('TEMPO! 마법 쿨다운 추가 감소', now);
 
-  if (turnCombos.length) {
-    const res = computeAttack(team, turnCombos, enemy);
-    let total = 0;
-    res.perHero.forEach((dmg, i) => {
-      if (!dmg) return;
-      total += dmg;
-      heroFlash[i] = now;
-      floats.push({
-        text: String(dmg),
-        x: slotX(i) + SLOT_W / 2,
-        y: TEAM_Y - 4,
-        color: ORB_COLOR[team[i].orb][1],
-        size: 20,
-        t0: now,
-        dur: 900,
-      });
-    });
-    if (total) {
-      enemy.hp = Math.max(0, enemy.hp - total);
-      floats.push({ text: `-${total}`, x: W / 2, y: 170, color: '#fff', size: 36, t0: now + 200, dur: 1000 });
-    }
-    if (res.heal) {
-      hp = Math.min(maxHp, hp + res.heal);
-      floats.push({ text: `+${res.heal}`, x: W / 2, y: HPBAR_Y - 6, color: '#7dffa0', size: 20, t0: now, dur: 900 });
-    }
-  }
-  setPhase('attack', now);
+  const result = resolveTurn(knight, turnCombos, enemy);
+  harmony = result.harmony;
+  if (harmony) toastMsg('조화 보너스! 모든 효과 +20%', now);
+  actions = [...result.actions];
+  queueFinisher();
+  nextActionAt = now + 150;
+  setPhase('act', now);
 }
 
-function afterAttack(now: number): void {
+function runAction(a: QueuedAction, now: number): void {
+  const kx = KNIGHT_X;
+  const ky = GROUND_Y - 50;
+  switch (a.type) {
+    case 'phys':
+    case 'magic': {
+      if (enemy.hp <= 0) return;
+      enemy.hp = Math.max(0, enemy.hp - a.value);
+      enemyHurtT = now;
+      if (a.type === 'phys') knightLungeT = now;
+      fx.push({ type: a.type === 'phys' ? 'slash' : 'bolt', t0: now, dur: 280, heavy: a.heavy });
+      const tag = a.heavy ? '강타 ' : a.pierce ? '관통 ' : '';
+      addFloat(tag + a.value, enemyX + rand(-20, 20), GROUND_Y - 110, ORB_COLOR[a.type === 'phys' ? Orb.Sword : Orb.Magic][0], a.heavy ? 28 : 22, now, 900);
+      beep(a.type === 'phys' ? 220 : 520, 0.1);
+      break;
+    }
+    case 'heal': {
+      const before = knight.hp;
+      knight.hp = Math.min(knight.maxHp, knight.hp + a.value);
+      fx.push({ type: 'heal', t0: now, dur: 500 });
+      addFloat(`+${knight.hp - before}`, kx, ky - 50, '#7dffa0', 22, now, 900);
+      beep(700, 0.12);
+      break;
+    }
+    case 'shield':
+      knight.shield += a.value;
+      fx.push({ type: 'shield', t0: now, dur: 500 });
+      addFloat(`보호막 +${a.value}`, kx, ky - 50, ORB_COLOR[Orb.Shield][0], 18, now, 900);
+      beep(440, 0.12);
+      break;
+    case 'energy':
+      knight.energy = Math.min(100, knight.energy + a.value);
+      fx.push({ type: 'energy', t0: now, dur: 400 });
+      addFloat(`기력 +${a.value}`, kx, ky - 50, ORB_COLOR[Orb.Energy][0], 18, now, 900);
+      beep(990, 0.08);
+      break;
+    case 'finisher':
+      if (enemy.hp <= 0) return;
+      enemy.hp = Math.max(0, enemy.hp - a.value);
+      enemyHurtT = now;
+      knightLungeT = now;
+      shakeUntil = now + 300;
+      fx.push({ type: 'finisher', t0: now, dur: 600 });
+      addFloat(`필살 ${a.value}`, enemyX, GROUND_Y - 130, '#ffe066', 34, now, 1200);
+      beep(150, 0.4);
+      break;
+  }
+}
+
+function stepActions(now: number): void {
+  if (now < nextActionAt) return;
+  const a = actions.shift();
+  if (a) {
+    if (a.type === 'finisher') {
+      // 몬스터가 이미 쓰러졌으면 필살기는 다음 몬스터를 위해 아껴 둔다
+      if (enemy.hp > 0) {
+        runAction({ type: 'finisher', value: finisherDamage(knight) }, now);
+        knight.energy = 0;
+      }
+    } else {
+      runAction(a, now);
+      queueFinisher();
+    }
+    nextActionAt = now + (a.type === 'finisher' ? 700 : ACTION_MS);
+    return;
+  }
+  afterActions(now);
+}
+
+/** 기력이 가득 차면 행동 큐 끝에 필살기 추가 */
+function queueFinisher(): void {
+  if (knight.energy >= 100 && !actions.some((q) => q.type === 'finisher')) actions.push({ type: 'finisher', value: 0 });
+}
+
+function afterActions(now: number): void {
   if (enemy.hp <= 0) {
+    kills++;
+    if (kills > best) saveBest((best = kills));
+    levelUp(knight);
+    addFloat(`LEVEL ${knight.level}`, KNIGHT_X, GROUND_Y - 150, '#ffe066', 20, now, 1200);
     beep(880, 0.25);
-    if (floorIdx + 1 >= floors.length) setPhase('won', now);
-    else setPhase('next', now);
+    setPhase('defeat', now);
     return;
   }
   enemy.turns--;
   if (enemy.turns <= 0) {
-    enemy.turns = enemy.maxTurns;
-    hp = Math.max(0, hp - enemy.atk);
-    shakeUntil = now + 350;
-    beep(110, 0.3);
-    floats.push({ text: `-${enemy.atk}`, x: W / 2, y: HPBAR_Y - 6, color: '#ff6b6b', size: 26, t0: now, dur: 1000 });
+    enemyLungeT = now;
+    setPhase('enemy', now);
+    return;
   }
-  setPhase(hp <= 0 ? 'lost' : 'idle', now);
+  setPhase('idle', now);
+}
+
+function enemyStrike(now: number): void {
+  const intent = enemyIntent(enemy);
+  const blocked = Math.min(knight.shield, intent.damage);
+  const dealt = takeHit(knight, intent.damage);
+  enemy.attacks++;
+  enemy.turns = enemy.maxTurns;
+  knightHurtT = now;
+  shakeUntil = now + (intent.heavy ? 500 : 300);
+  fx.push({ type: 'hit', t0: now, dur: 300 });
+  if (blocked) addFloat(`막음 ${blocked}`, KNIGHT_X, GROUND_Y - 150, ORB_COLOR[Orb.Shield][0], 16, now, 1000);
+  addFloat(dealt ? `-${dealt}` : 'BLOCK', KNIGHT_X, GROUND_Y - 120, dealt ? '#ff6b6b' : '#b8f0e6', intent.heavy ? 30 : 24, now, 1000);
+  beep(110, 0.3);
 }
 
 // ---- 입력 ----
@@ -230,7 +331,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const now = performance.now();
   const { x, y } = toLogical(e);
   unlockAudio();
-  if (phase === 'won' || phase === 'lost') {
+  if (phase === 'lost') {
     if (now - phaseT > 800) resetGame();
     return;
   }
@@ -246,22 +347,23 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
-  if (y >= TEAM_Y && y < TEAM_Y + 76) {
-    const i = team.findIndex((_, k) => x >= slotX(k) && x < slotX(k) + SLOT_W);
+  if (y >= SPELL_Y && y < SPELL_Y + 72) {
+    const i = spells.findIndex((_, k) => x >= slotX(k) && x < slotX(k) + SLOT_W);
     if (i < 0) return;
-    const hero = team[i];
-    if (hero.cd > 0) {
-      toastMsg(`${hero.skillName}: ${hero.skillDesc} (${hero.cd}턴 남음)`, now);
+    const spell = spells[i];
+    if (spell.cd > 0) {
+      toastMsg(`${spell.name}: ${spell.desc} (${spell.cd}턴 남음)`, now);
       return;
     }
-    applySkill(hero.skill, grid, enemy, (ratio) => {
-      const amount = Math.round(maxHp * ratio);
-      hp = Math.min(maxHp, hp + amount);
-      floats.push({ text: `+${amount}`, x: W / 2, y: HPBAR_Y - 6, color: '#7dffa0', size: 22, t0: now, dur: 900 });
-    });
-    hero.cd = hero.maxCd;
-    heroFlash[i] = now;
-    toastMsg(`${hero.name} — ${hero.skillName}!`, now);
+    const shieldBefore = knight.shield;
+    applySpell(spell.kind, grid, knight, enemy);
+    if (knight.shield > shieldBefore) {
+      fx.push({ type: 'shield', t0: now, dur: 500 });
+      addFloat(`보호막 +${knight.shield - shieldBefore}`, KNIGHT_X, GROUND_Y - 100, ORB_COLOR[Orb.Shield][0], 18, now, 900);
+    }
+    spell.cd = spell.maxCd;
+    spellFlash[i] = now;
+    toastMsg(`${spell.name}!`, now);
     beep(660, 0.2);
   }
 });
@@ -283,7 +385,7 @@ canvas.addEventListener('pointermove', (e) => {
     offs[drag.pos.r][drag.pos.c] = { x: (next.c - drag.pos.c) * CELL, y: (next.r - drag.pos.r) * CELL };
     drag.pos = next;
     drag.t0 ??= now;
-    tick();
+    beep(900, 0.03);
   }
 });
 
@@ -304,6 +406,29 @@ canvas.addEventListener('pointercancel', endDrag);
 
 function toastMsg(text: string, now: number): void {
   toast = { text, t0: now };
+}
+
+function addFloat(text: string, x: number, y: number, color: string, size: number, t0: number, dur: number): void {
+  floats.push({ text, x, y, color, size, t0, dur });
+}
+
+function rand(a: number, b: number): number {
+  return a + Math.random() * (b - a);
+}
+
+function loadBest(): number {
+  try {
+    return Number(localStorage.getItem('runeKnight.best')) || 0;
+  } catch {
+    return 0;
+  }
+}
+function saveBest(v: number): void {
+  try {
+    localStorage.setItem('runeKnight.best', String(v));
+  } catch {
+    // 저장 불가 환경은 무시
+  }
 }
 
 // ---- 사운드 ----
@@ -327,9 +452,6 @@ function beep(freq: number, dur = 0.12): void {
   osc.start();
   osc.stop(audio.currentTime + dur);
 }
-function tick(): void {
-  beep(900, 0.03);
-}
 
 // ---- 업데이트 ----
 function update(dt: number, now: number): void {
@@ -342,20 +464,44 @@ function update(dt: number, now: number): void {
       if (o.x || o.y) moving = true;
     }
   }
-  enemyHpShown += (enemy.hp - enemyHpShown) * Math.min(1, dt * 6);
-  hpShown += (hp - hpShown) * Math.min(1, dt * 6);
+  const k = Math.min(1, dt * 6);
+  enemyHpShown += (enemy.hp - enemyHpShown) * k;
+  hpShown += (knight.hp - hpShown) * k;
+  energyShown += (knight.energy - energyShown) * k;
 
-  if (phase === 'drag' && drag?.t0 != null && now - drag.t0 >= DRAG_MS) endDrag();
-  if (phase === 'clear') stepClear(now);
-  if (phase === 'fall' && !moving) beginResolve(now);
-  if (phase === 'attack' && now - phaseT > 900) afterAttack(now);
-  if (phase === 'next' && now - phaseT > 1300) {
-    floorIdx++;
-    enemy = floors[floorIdx];
-    enemyHpShown = enemy.hp;
-    setPhase('idle', now);
+  switch (phase) {
+    case 'walk': {
+      const d = Math.min(WALK_SPEED * dt, enemyX - ENEMY_X);
+      scroll += d;
+      enemyX -= d;
+      if (enemyX <= ENEMY_X) setPhase('idle', now);
+      break;
+    }
+    case 'drag':
+      if (drag?.t0 != null && now - drag.t0 >= DRAG_MS) endDrag();
+      break;
+    case 'clear':
+      stepClear(now);
+      break;
+    case 'fall':
+      if (!moving) beginResolve(now);
+      break;
+    case 'act':
+      stepActions(now);
+      break;
+    case 'enemy':
+      if (now - phaseT >= 220 && enemyLungeT >= phaseT && knightHurtT < phaseT) enemyStrike(now);
+      if (now - phaseT > 700) setPhase(knight.hp <= 0 ? 'lost' : 'idle', now);
+      break;
+    case 'defeat':
+      if (now - phaseT > 800) {
+        enemyIndex++;
+        spawnEnemy(now);
+      }
+      break;
   }
   floats = floats.filter((f) => now - f.t0 < f.dur);
+  fx = fx.filter((f) => now - f.t0 < f.dur);
 }
 
 function approach(v: number, step: number): number {
@@ -370,10 +516,10 @@ function render(now: number): void {
   ctx.fillRect(0, 0, W, H);
   if (now < shakeUntil) ctx.translate((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
 
+  drawScene(now);
   drawHeader();
-  drawEnemy(now);
-  drawTeam(now);
-  drawHpBar();
+  drawSpells(now);
+  drawKnightBars(now);
   drawBoard(now);
   drawFloats(now);
   drawOverlay(now);
@@ -382,128 +528,445 @@ function render(now: number): void {
 
 function drawHeader(): void {
   ctx.fillStyle = '#0d0b1a';
-  ctx.fillRect(0, 0, W, 40);
+  ctx.fillRect(0, 0, W, SCENE_Y);
   ctx.fillStyle = '#c9c3ff';
   ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`RUNE DRIFT`, 14, 20);
+  ctx.fillText('RUNE KNIGHT', 14, 20);
   ctx.textAlign = 'right';
-  ctx.fillText(`FLOOR ${floorIdx + 1} / ${floors.length}`, W - 14, 20);
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText(`${Math.floor(scroll / 30)}m · 처치 ${kills} · Lv ${knight.level}`, W - 14, 20);
 }
 
-function drawEnemy(now: number): void {
-  const [light, dark] = ORB_COLOR[enemy.orb];
-  const cx = W / 2;
-  const cy = 150;
-  const bob = Math.sin(now / 500) * 6;
-  const hit = phase === 'attack' && now - phaseT < 300;
-  const R = enemy.boss ? 78 : 60;
+function drawScene(now: number): void {
+  // 하늘
+  const sky = ctx.createLinearGradient(0, SCENE_Y, 0, GROUND_Y);
+  sky.addColorStop(0, '#2b2a5c');
+  sky.addColorStop(1, '#6d5a9c');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, SCENE_Y, W, GROUND_Y - SCENE_Y);
 
-  const bg = ctx.createRadialGradient(cx, cy, 10, cx, cy, 220);
-  bg.addColorStop(0, dark + '55');
-  bg.addColorStop(1, '#15122a00');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 40, W, TEAM_Y - 40);
+  // 원경 산 (느린 패럴랙스)
+  ctx.fillStyle = '#433a73';
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y);
+  for (let x = 0; x <= W + 20; x += 20) {
+    const wx = x + scroll * 0.2;
+    ctx.lineTo(x, GROUND_Y - 70 - Math.sin(wx / 90) * 30 - Math.sin(wx / 37) * 10);
+  }
+  ctx.lineTo(W, GROUND_Y);
+  ctx.fill();
 
-  if (enemy.hp > 0 || phase === 'attack') {
+  // 근경 언덕
+  ctx.fillStyle = '#2f5a3e';
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y);
+  for (let x = 0; x <= W + 20; x += 20) {
+    const wx = x + scroll * 0.5;
+    ctx.lineTo(x, GROUND_Y - 25 - Math.sin(wx / 60) * 12);
+  }
+  ctx.lineTo(W, GROUND_Y);
+  ctx.fill();
+
+  // 땅
+  ctx.fillStyle = '#5a4630';
+  ctx.fillRect(0, GROUND_Y, W, SPELL_Y - 6 - GROUND_Y);
+  ctx.fillStyle = '#6f5a3c';
+  const tile = 40;
+  for (let x = -((scroll % tile) + tile); x < W + tile; x += tile) {
+    ctx.fillRect(x, GROUND_Y + 4, tile - 10, 5);
+  }
+  ctx.fillStyle = '#3f7a45';
+  ctx.fillRect(0, GROUND_Y - 3, W, 4);
+
+  drawEnemy(now);
+  drawKnight(now);
+  drawFx(now);
+}
+
+function drawKnight(now: number): void {
+  const walking = phase === 'walk';
+  const lunge = lungeCurve(now - knightLungeT, 260) * 60;
+  const hurt = now - knightHurtT < 300;
+  const x = KNIGHT_X + lunge - (hurt ? 10 : 0);
+  const stepPhase = walking ? Math.sin(now / 90) : 0;
+  const bob = walking ? Math.abs(Math.sin(now / 90)) * -3 : Math.sin(now / 600) * 1.5;
+
+  ctx.save();
+  ctx.translate(x, GROUND_Y + bob);
+  if (hurt && Math.floor(now / 60) % 2) ctx.globalAlpha = 0.5;
+
+  // 다리
+  ctx.fillStyle = '#39414f';
+  ctx.fillRect(-10 + stepPhase * 5, -24, 8, 24);
+  ctx.fillRect(2 - stepPhase * 5, -24, 8, 24);
+
+  // 방패(뒤쪽 팔)
+  ctx.fillStyle = '#2b5cd6';
+  ctx.strokeStyle = '#ffd24a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-26, -54);
+  ctx.lineTo(-10, -54);
+  ctx.lineTo(-10, -36);
+  ctx.quadraticCurveTo(-18, -24, -26, -36);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 몸통 갑옷
+  const armor = ctx.createLinearGradient(-14, -60, 14, -20);
+  armor.addColorStop(0, '#eef2f8');
+  armor.addColorStop(1, '#8a94a8');
+  ctx.fillStyle = armor;
+  ctx.beginPath();
+  ctx.roundRect(-14, -60, 28, 38, 6);
+  ctx.fill();
+  ctx.fillStyle = '#2b5cd6';
+  ctx.fillRect(-7, -52, 14, 28);
+  ctx.fillStyle = '#ffd24a';
+  ctx.fillRect(-7, -40, 14, 3);
+
+  // 투구
+  ctx.fillStyle = armor;
+  ctx.beginPath();
+  ctx.arc(0, -70, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a2a';
+  ctx.fillRect(2, -72, 10, 3);
+  ctx.strokeStyle = '#e8391c';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-2, -82);
+  ctx.quadraticCurveTo(-12, -90, -20, -74);
+  ctx.stroke();
+
+  // 검: 평소엔 치켜들고, 공격 시 앞으로 휘두름
+  const swing = lungeCurve(now - knightLungeT, 260);
+  const angle = -1.2 + swing * 1.9;
+  const casting = fx.some((f) => f.type === 'bolt');
+  ctx.translate(12, -44);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#6b4a2b';
+  ctx.fillRect(-4, -3, 10, 6);
+  ctx.fillStyle = '#ffd24a';
+  ctx.fillRect(5, -8, 4, 16);
+  ctx.fillStyle = casting ? ORB_COLOR[Orb.Magic][0] : '#dfe6f0';
+  if (casting) {
+    ctx.shadowColor = ORB_COLOR[Orb.Magic][1];
+    ctx.shadowBlur = 16;
+  }
+  ctx.beginPath();
+  ctx.moveTo(9, -3);
+  ctx.lineTo(48, -2);
+  ctx.lineTo(54, 0);
+  ctx.lineTo(48, 2);
+  ctx.lineTo(9, 3);
+  ctx.fill();
+  ctx.restore();
+
+  // 보호막 버블
+  if (knight.shield > 0) {
     ctx.save();
-    ctx.translate(cx + (hit ? (Math.random() - 0.5) * 10 : 0), cy + bob);
-    if (enemy.boss) {
-      ctx.fillStyle = dark;
-      for (const s of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(s * R * 0.4, -R * 0.7);
-        ctx.lineTo(s * R * 0.9, -R * 1.35);
-        ctx.lineTo(s * R * 0.75, -R * 0.5);
-        ctx.fill();
-      }
-    }
-    const g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 5, 0, 0, R);
-    g.addColorStop(0, hit ? '#fff' : light);
-    g.addColorStop(1, dark);
-    ctx.fillStyle = g;
+    ctx.globalAlpha = 0.25 + Math.sin(now / 200) * 0.05;
+    ctx.fillStyle = ORB_COLOR[Orb.Shield][0];
+    ctx.strokeStyle = ORB_COLOR[Orb.Shield][1];
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, R, R * 0.85, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, GROUND_Y - 45, 44, 52, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#1a1030';
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(s * R * 0.32, -R * 0.1, R * 0.12, R * 0.18, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.globalAlpha = 0.8;
+    ctx.stroke();
     ctx.restore();
   }
+}
 
+/** 0→1→0 형태의 돌진 곡선 */
+function lungeCurve(t: number, dur: number): number {
+  if (t < 0 || t > dur) return 0;
+  return Math.sin((t / dur) * Math.PI);
+}
+
+const KIND_COLOR: Record<EnemyKind, [string, string]> = {
+  beast: ['#d8a070', '#7a4a26'],
+  armored: ['#c8d0dc', '#4a5468'],
+  spirit: ['#c8a8ff', '#5a2ea8'],
+};
+
+function drawEnemy(now: number): void {
+  const dying = phase === 'defeat' ? Math.min(1, (now - phaseT) / 600) : 0;
+  const [light, dark] = KIND_COLOR[enemy.kind];
+  const S = enemy.boss ? 1.45 : 1;
+  const lunge = lungeCurve(now - enemyLungeT, 300) * -70;
+  const hurt = now - enemyHurtT < 200;
+  const x = enemyX + lunge + (hurt ? rand(-4, 4) : 0);
+  const float = enemy.kind === 'spirit' ? -18 + Math.sin(now / 300) * 6 : 0;
+  const bob = Math.sin(now / 400) * 2;
+
+  ctx.save();
+  ctx.globalAlpha = 1 - dying;
+  ctx.translate(x, GROUND_Y + float + bob);
+  ctx.scale(S * (1 - dying * 0.3), S * (1 - dying * 0.3));
+
+  const g = ctx.createRadialGradient(-10, -50, 5, 0, -35, 50);
+  g.addColorStop(0, hurt ? '#fff' : light);
+  g.addColorStop(1, dark);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  if (enemy.kind === 'beast') {
+    ctx.ellipse(0, -30, 38, 30, 0, 0, Math.PI * 2);
+    ctx.moveTo(-24, -52);
+    ctx.lineTo(-30, -74);
+    ctx.lineTo(-10, -58);
+    ctx.moveTo(8, -58);
+    ctx.lineTo(22, -76);
+    ctx.lineTo(26, -52);
+  } else if (enemy.kind === 'armored') {
+    ctx.roundRect(-32, -72, 64, 72, 10);
+  } else {
+    ctx.arc(0, -44, 32, Math.PI, 0);
+    ctx.lineTo(32, -6);
+    for (let i = 0; i < 4; i++) {
+      const wx = 32 - (i + 1) * 16;
+      ctx.quadraticCurveTo(wx + 8, -6 + (i % 2 ? -10 : 10) + Math.sin(now / 150 + i) * 3, wx, -6);
+    }
+    ctx.closePath();
+  }
+  ctx.fill();
+
+  // 눈 (기사를 향해 왼쪽을 봄)
+  ctx.fillStyle = enemy.kind === 'armored' ? '#ff9a2a' : enemy.kind === 'spirit' ? '#6be3ff' : '#ff3a3a';
+  if (enemy.kind === 'armored') {
+    ctx.fillRect(-26, -54, 34, 6);
+  } else {
+    for (const ex of [-20, -2]) {
+      ctx.beginPath();
+      ctx.arc(ex, -40, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (enemy.boss) {
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath();
+    ctx.moveTo(-18, -74);
+    ctx.lineTo(-12, -90);
+    ctx.lineTo(-4, -78);
+    ctx.lineTo(0, -94);
+    ctx.lineTo(4, -78);
+    ctx.lineTo(12, -90);
+    ctx.lineTo(18, -74);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  if (phase === 'defeat') return;
+
+  // 이름, 체질, HP, 공격 예고
+  const cx = Math.min(W - 90, x);
+  const top = 56;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillText(enemy.name + (enemy.boss ? ' (BOSS)' : ''), cx, 66);
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(enemy.name + (enemy.boss ? ' (BOSS)' : ''), cx, top + 4);
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#d9d4ff';
+  ctx.fillText(RESIST[enemy.kind].label, cx, top + 20);
 
-  // 공격 카운트다운
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillStyle = enemy.turns <= 1 ? '#ff6b6b' : '#c9c3ff';
-  ctx.fillText(`공격까지 ${enemy.turns}턴`, cx, 86);
-
-  // HP 바
-  const bw = 300;
-  const bx = cx - bw / 2;
-  const by = 250;
+  const bw = 150;
   ctx.fillStyle = '#000a';
-  roundRect(bx, by, bw, 14, 7);
+  ctx.beginPath();
+  ctx.roundRect(cx - bw / 2, top + 26, bw, 10, 5);
   ctx.fill();
-  ctx.fillStyle = dark;
-  roundRect(bx, by, Math.max(0, (bw * enemyHpShown) / enemy.maxHp), 14, 7);
+  ctx.fillStyle = '#e8391c';
+  ctx.beginPath();
+  ctx.roundRect(cx - bw / 2, top + 26, Math.max(0, (bw * enemyHpShown) / enemy.maxHp), 10, 5);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.font = '12px sans-serif';
-  ctx.fillText(`${Math.ceil(enemy.hp)} / ${enemy.maxHp}`, cx, by + 30);
-  drawOrb(enemy.orb, false, bx - 16, by + 7, 11, 1);
+  ctx.font = '10px sans-serif';
+  ctx.fillText(`${Math.ceil(enemy.hp)} / ${enemy.maxHp}`, cx, top + 48);
+
+  if (phase !== 'walk') {
+    const intent = enemyIntent(enemy);
+    const danger = intent.damage >= knight.hp + knight.shield;
+    const text = `${intent.heavy ? '강공격' : '공격'} ${intent.damage} · ${enemy.turns}턴 후`;
+    ctx.font = 'bold 12px sans-serif';
+    const tw = ctx.measureText(text).width + 16;
+    ctx.fillStyle = intent.heavy || danger ? '#7a1020dd' : '#000a';
+    ctx.beginPath();
+    ctx.roundRect(cx - tw / 2, top + 54, tw, 20, 10);
+    ctx.fill();
+    ctx.fillStyle = enemy.turns <= 1 ? '#ff8a8a' : '#fff';
+    ctx.fillText(text, cx, top + 68);
+  }
 }
 
-function drawTeam(now: number): void {
-  team.forEach((hero, i) => {
+function drawFx(now: number): void {
+  for (const f of fx) {
+    const t = (now - f.t0) / f.dur;
+    ctx.save();
+    ctx.globalAlpha = 1 - t;
+    const ex = enemyX;
+    const ey = GROUND_Y - 40;
+    switch (f.type) {
+      case 'slash': {
+        ctx.strokeStyle = ORB_COLOR[Orb.Sword][0];
+        ctx.lineWidth = f.heavy ? 10 : 6;
+        ctx.shadowColor = ORB_COLOR[Orb.Sword][1];
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(ex - 10, ey, f.heavy ? 56 : 42, -1.2 + t, 0.9 + t);
+        ctx.stroke();
+        break;
+      }
+      case 'bolt': {
+        const sx = KNIGHT_X + 40;
+        const px = sx + (ex - sx) * Math.min(1, t * 2.2);
+        ctx.fillStyle = ORB_COLOR[Orb.Magic][0];
+        ctx.shadowColor = ORB_COLOR[Orb.Magic][1];
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(px, ey - 10, f.heavy ? 16 : 11, 0, Math.PI * 2);
+        ctx.fill();
+        if (t > 0.45) {
+          ctx.beginPath();
+          ctx.arc(ex, ey - 10, 20 + t * 30, 0, Math.PI * 2);
+          ctx.strokeStyle = ORB_COLOR[Orb.Magic][0];
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'heal':
+        ctx.fillStyle = '#7dffa0';
+        for (let i = 0; i < 6; i++) {
+          const px = KNIGHT_X - 25 + i * 10;
+          const py = GROUND_Y - 20 - t * 70 - (i % 2) * 15;
+          ctx.fillRect(px - 2, py - 6, 4, 12);
+          ctx.fillRect(px - 6, py - 2, 12, 4);
+        }
+        break;
+      case 'shield':
+        ctx.strokeStyle = ORB_COLOR[Orb.Shield][0];
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.ellipse(KNIGHT_X, GROUND_Y - 45, 30 + t * 20, 38 + t * 20, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      case 'energy':
+        ctx.strokeStyle = ORB_COLOR[Orb.Energy][0];
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const r1 = 20 + t * 30;
+          ctx.beginPath();
+          ctx.moveTo(KNIGHT_X + Math.cos(a) * r1, GROUND_Y - 45 + Math.sin(a) * r1);
+          ctx.lineTo(KNIGHT_X + Math.cos(a) * (r1 + 10), GROUND_Y - 45 + Math.sin(a) * (r1 + 10));
+          ctx.stroke();
+        }
+        break;
+      case 'finisher':
+        ctx.fillStyle = '#fff6c0';
+        ctx.fillRect(0, SCENE_Y, W, GROUND_Y - SCENE_Y + 30);
+        ctx.strokeStyle = '#ffe066';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.moveTo(ex - 80, ey - 70);
+        ctx.lineTo(ex + 60, ey + 40);
+        ctx.stroke();
+        break;
+      case 'hit':
+        ctx.fillStyle = '#ff3a3a55';
+        ctx.fillRect(0, SCENE_Y, W, GROUND_Y - SCENE_Y + 30);
+        break;
+    }
+    ctx.restore();
+  }
+}
+
+function drawSpells(now: number): void {
+  ctx.fillStyle = '#15122a';
+  ctx.fillRect(0, SPELL_Y - 6, W, BOARD_Y - SPELL_Y + 6);
+  spells.forEach((spell, i) => {
     const x = slotX(i);
-    const [light, dark] = ORB_COLOR[hero.orb];
-    const flash = Math.max(0, 1 - (now - heroFlash[i]) / 400);
-    const g = ctx.createLinearGradient(x, TEAM_Y, x, TEAM_Y + 76);
-    g.addColorStop(0, dark);
+    const [light, dark] = ORB_COLOR[spell.orb];
+    const flash = Math.max(0, 1 - (now - spellFlash[i]) / 400);
+    const ready = spell.cd === 0;
+    const g = ctx.createLinearGradient(x, SPELL_Y, x, SPELL_Y + 72);
+    g.addColorStop(0, ready ? dark : dark + '88');
     g.addColorStop(1, '#1d1838');
     ctx.fillStyle = g;
-    roundRect(x, TEAM_Y - flash * 8, SLOT_W, 76, 10);
+    ctx.beginPath();
+    ctx.roundRect(x, SPELL_Y - flash * 6, SLOT_W, 72, 10);
     ctx.fill();
-    ctx.lineWidth = hero.cd === 0 ? 3 : 1.5;
-    ctx.strokeStyle = hero.cd === 0 ? `hsl(50, 100%, ${60 + Math.sin(now / 150) * 15}%)` : light + '88';
+    ctx.lineWidth = ready ? 3 : 1.5;
+    ctx.strokeStyle = ready ? `hsl(50, 100%, ${60 + Math.sin(now / 150) * 15}%)` : light + '66';
     ctx.stroke();
 
-    drawOrb(hero.orb, false, x + SLOT_W / 2, TEAM_Y + 24 - flash * 8, 15, 1);
+    drawOrb(spell.orb, false, x + SLOT_W / 2, SPELL_Y + 20 - flash * 6, 13, ready ? 1 : 0.6);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(hero.name, x + SLOT_W / 2, TEAM_Y + 56);
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(spell.name, x + SLOT_W / 2, SPELL_Y + 50);
     ctx.font = 'bold 11px sans-serif';
-    ctx.fillStyle = hero.cd === 0 ? '#ffe066' : '#aaa';
-    ctx.fillText(hero.cd === 0 ? 'SKILL 준비' : `CD ${hero.cd}`, x + SLOT_W / 2, TEAM_Y + 70);
+    ctx.fillStyle = ready ? '#ffe066' : '#aaa';
+    ctx.fillText(ready ? '사용 가능' : `${spell.cd}턴`, x + SLOT_W / 2, SPELL_Y + 65);
   });
 }
 
-function drawHpBar(): void {
+function drawKnightBars(now: number): void {
   const x = 14;
   const w = W - 28;
+  const ratio = hpShown / knight.maxHp;
+  const intent = enemyIntent(enemy);
+  const danger = phase !== 'walk' && phase !== 'defeat' && intent.damage >= knight.hp + knight.shield;
+
   ctx.fillStyle = '#000a';
-  roundRect(x, HPBAR_Y, w, 12, 6);
+  ctx.beginPath();
+  ctx.roundRect(x, HPBAR_Y, w, 12, 6);
   ctx.fill();
-  const ratio = hpShown / maxHp;
-  ctx.fillStyle = ratio > 0.5 ? '#4cd964' : ratio > 0.2 ? '#ffcc00' : '#ff4d4d';
-  roundRect(x, HPBAR_Y, Math.max(0, w * ratio), 12, 6);
+  ctx.fillStyle = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff4d4d';
+  ctx.beginPath();
+  ctx.roundRect(x, HPBAR_Y, Math.max(0, w * ratio), 12, 6);
   ctx.fill();
+  // 예상 피해 구간 표시
+  if (phase !== 'walk' && phase !== 'defeat') {
+    const loss = Math.max(0, intent.damage - knight.shield);
+    const from = Math.max(0, knight.hp - loss) / knight.maxHp;
+    ctx.fillStyle = `rgba(255,40,40,${0.35 + Math.sin(now / 150) * 0.2})`;
+    ctx.fillRect(x + w * from, HPBAR_Y, Math.max(0, w * (ratio - from)), 12);
+  }
+  if (knight.shield > 0) {
+    ctx.strokeStyle = ORB_COLOR[Orb.Shield][0];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - 1, HPBAR_Y - 1, w + 2, 14, 7);
+    ctx.stroke();
+  }
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 10px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`HP ${Math.ceil(hp)} / ${maxHp}`, W / 2, HPBAR_Y + 6);
+  const shieldText = knight.shield > 0 ? `  +보호막 ${knight.shield}` : '';
+  ctx.fillText(`기사 HP ${Math.ceil(knight.hp)} / ${knight.maxHp}${shieldText}`, W / 2, HPBAR_Y + 6.5);
+
+  // 필살 게이지
+  ctx.fillStyle = '#000a';
+  ctx.fillRect(x, ENERGY_Y, w, 5);
+  ctx.fillStyle = energyShown >= 99.5 ? `hsl(50,100%,${60 + Math.sin(now / 100) * 20}%)` : ORB_COLOR[Orb.Energy][1];
+  ctx.fillRect(x, ENERGY_Y, (w * energyShown) / 100, 5);
+
+  if (danger && phase !== 'lost') {
+    ctx.globalAlpha = 0.6 + Math.sin(now / 120) * 0.4;
+    ctx.fillStyle = '#ff4d4d';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('! 치명타 경고 — 힐/방패로 버티세요', 14, GROUND_Y + 26);
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawBoard(now: number): void {
@@ -514,7 +977,6 @@ function drawBoard(now: number): void {
     }
   }
 
-  // 사라지는 콤보
   for (const f of fading) {
     const t = Math.min(1, (now - f.t0) / FADE_MS);
     for (const p of f.cells) {
@@ -526,17 +988,28 @@ function drawBoard(now: number): void {
   ctx.beginPath();
   ctx.rect(0, BOARD_Y, W, H - BOARD_Y);
   ctx.clip();
+  const locked = phase === 'walk' || phase === 'defeat' || phase === 'lost';
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const cell = grid[r][c];
       if (!cell) continue;
       if (drag && drag.pos.r === r && drag.pos.c === c) {
-        // 잡고 있는 룬의 자리: 반투명 가이드
         drawOrb(cell.orb, cell.plus, (c + 0.5) * CELL, BOARD_Y + (r + 0.5) * CELL, 34, 0.25);
         continue;
       }
       const o = offs[r][c];
       drawOrb(cell.orb, cell.plus, (c + 0.5) * CELL + o.x, BOARD_Y + (r + 0.5) * CELL + o.y, 34, 1);
+    }
+  }
+  if (locked) {
+    ctx.fillStyle = '#0d0b1aa0';
+    ctx.fillRect(0, BOARD_Y, W, H - BOARD_Y);
+    if (phase === 'walk') {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('기사 전진 중…', W / 2, BOARD_Y + (H - BOARD_Y) / 2);
     }
   }
   ctx.restore();
@@ -546,22 +1019,22 @@ function drawBoard(now: number): void {
     if (drag.t0 != null) {
       const left = Math.max(0, 1 - (now - drag.t0) / DRAG_MS);
       ctx.fillStyle = '#000a';
-      ctx.fillRect(0, BOARD_Y - 8, W, 8);
+      ctx.fillRect(0, BOARD_Y - 4, W, 4);
       ctx.fillStyle = left > 0.3 ? '#6be3ff' : '#ff6b6b';
-      ctx.fillRect(0, BOARD_Y - 8, W * left, 8);
+      ctx.fillRect(0, BOARD_Y - 4, W * left, 4);
     }
   }
 
-  if (turnCombos.length && (phase === 'clear' || phase === 'fall' || phase === 'attack')) {
+  if (turnCombos.length && (phase === 'clear' || phase === 'fall' || phase === 'act')) {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'alphabetic';
-    ctx.font = 'bold 28px sans-serif';
+    ctx.font = 'bold 26px sans-serif';
     ctx.lineWidth = 5;
     ctx.strokeStyle = '#000';
-    const text = `${turnCombos.length} COMBO`;
-    ctx.strokeText(text, W - 12, BOARD_Y - 16);
+    const text = `${turnCombos.length} COMBO${harmony && phase === 'act' ? ' · 조화' : ''}`;
+    ctx.strokeText(text, W - 12, BOARD_Y + 32);
     ctx.fillStyle = turnCombos.length >= TEMPO_COMBOS ? '#ffe066' : '#fff';
-    ctx.fillText(text, W - 12, BOARD_Y - 16);
+    ctx.fillText(text, W - 12, BOARD_Y + 32);
   }
 }
 
@@ -580,41 +1053,52 @@ function drawOrb(orb: Orb, plus: boolean, x: number, y: number, R: number, alpha
   ctx.arc(0, 0, R, 0, Math.PI * 2);
   ctx.fill();
 
-  // 속성 심볼
-  const s = R * 0.45;
-  ctx.fillStyle = '#ffffffd0';
+  // 역할 심볼
+  const s = R * 0.5;
+  ctx.fillStyle = '#ffffffe0';
   ctx.beginPath();
   switch (orb) {
-    case Orb.Fire:
-      ctx.moveTo(0, -s);
-      ctx.quadraticCurveTo(s, 0, s * 0.6, s * 0.7);
-      ctx.quadraticCurveTo(0, s * 1.1, -s * 0.6, s * 0.7);
-      ctx.quadraticCurveTo(-s, 0, 0, -s);
+    case Orb.Sword:
+      ctx.moveTo(0, -s * 1.1);
+      ctx.lineTo(s * 0.18, -s * 0.8);
+      ctx.lineTo(s * 0.18, s * 0.35);
+      ctx.lineTo(s * 0.55, s * 0.35);
+      ctx.lineTo(s * 0.55, s * 0.52);
+      ctx.lineTo(s * 0.14, s * 0.52);
+      ctx.lineTo(s * 0.14, s);
+      ctx.lineTo(-s * 0.14, s);
+      ctx.lineTo(-s * 0.14, s * 0.52);
+      ctx.lineTo(-s * 0.55, s * 0.52);
+      ctx.lineTo(-s * 0.55, s * 0.35);
+      ctx.lineTo(-s * 0.18, s * 0.35);
+      ctx.lineTo(-s * 0.18, -s * 0.8);
       break;
-    case Orb.Water:
-      ctx.moveTo(0, -s);
-      ctx.quadraticCurveTo(s * 0.9, s * 0.2, s * 0.6, s * 0.6);
-      ctx.arc(0, s * 0.35, s * 0.62, 0.3, Math.PI - 0.3);
-      ctx.quadraticCurveTo(-s * 0.9, s * 0.2, 0, -s);
-      break;
-    case Orb.Wood:
-      ctx.ellipse(0, 0, s * 0.5, s, Math.PI / 4, 0, Math.PI * 2);
-      break;
-    case Orb.Light:
+    case Orb.Magic:
       for (let k = 0; k < 8; k++) {
         const a = (k * Math.PI) / 4 - Math.PI / 2;
-        const rr = k % 2 ? s * 0.4 : s;
+        const rr = k % 2 ? s * 0.35 : s;
         ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
       }
       break;
-    case Orb.Dark:
-      ctx.arc(0, 0, s, Math.PI * 0.25, Math.PI * 1.75);
-      ctx.arc(s * 0.35, 0, s * 0.75, Math.PI * 1.6, Math.PI * 0.4, true);
-      break;
-    case Orb.Heart:
+    case Orb.Heal:
       ctx.moveTo(0, s * 0.8);
       ctx.bezierCurveTo(-s * 1.4, -s * 0.2, -s * 0.6, -s * 1.1, 0, -s * 0.4);
       ctx.bezierCurveTo(s * 0.6, -s * 1.1, s * 1.4, -s * 0.2, 0, s * 0.8);
+      break;
+    case Orb.Shield:
+      ctx.moveTo(-s * 0.8, -s * 0.8);
+      ctx.lineTo(s * 0.8, -s * 0.8);
+      ctx.lineTo(s * 0.8, 0);
+      ctx.quadraticCurveTo(s * 0.6, s * 0.7, 0, s);
+      ctx.quadraticCurveTo(-s * 0.6, s * 0.7, -s * 0.8, 0);
+      break;
+    case Orb.Energy:
+      ctx.moveTo(s * 0.2, -s);
+      ctx.lineTo(-s * 0.6, s * 0.15);
+      ctx.lineTo(-s * 0.05, s * 0.15);
+      ctx.lineTo(-s * 0.25, s);
+      ctx.lineTo(s * 0.6, -s * 0.2);
+      ctx.lineTo(s * 0.05, -s * 0.2);
       break;
   }
   ctx.closePath();
@@ -656,43 +1140,43 @@ function drawOverlay(now: number): void {
   if (toast && now - toast.t0 < 1800) {
     ctx.globalAlpha = Math.min(1, (1800 - (now - toast.t0)) / 300);
     ctx.fillStyle = '#000c';
-    roundRect(30, TEAM_Y - 52, W - 60, 36, 10);
+    ctx.beginPath();
+    ctx.roundRect(40, SCENE_Y + 8, W - 80, 30, 10);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(toast.text, W / 2, TEAM_Y - 34);
+    ctx.fillText(toast.text, W / 2, SCENE_Y + 23);
     ctx.globalAlpha = 1;
   }
 
-  if (phase === 'idle' && floorIdx === 0 && turnCombos.length === 0) {
-    ctx.fillStyle = '#ffffffb0';
-    ctx.font = '13px sans-serif';
+  if (phase === 'idle' && kills === 0 && enemy.attacks === 0 && enemy.turns === enemy.maxTurns) {
+    ctx.fillStyle = '#000b';
+    ctx.fillRect(0, BOARD_Y, W, 26);
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('룬을 잡고 5초 동안 자유롭게 끌어 같은 색 3개 이상을 맞추세요', W / 2, BOARD_Y - 10);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('검=물리 · 마법=마법 · 힐=회복 · 방패=보호막 · 기력=필살기', W / 2, BOARD_Y + 13);
   }
 
-  const banner = (title: string, sub: string, color: string): void => {
+  if (phase === 'lost') {
     ctx.fillStyle = '#000b';
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = color;
+    ctx.fillStyle = '#ff6b6b';
     ctx.font = 'bold 44px sans-serif';
-    ctx.fillText(title, W / 2, H / 2 - 20);
+    ctx.fillText('기사 쓰러짐', W / 2, H / 2 - 50);
     ctx.fillStyle = '#fff';
-    ctx.font = '16px sans-serif';
-    ctx.fillText(sub, W / 2, H / 2 + 24);
-  };
-  if (phase === 'next') banner('FLOOR CLEAR', `다음 층: ${floors[floorIdx + 1].name}`, '#ffe066');
-  if (phase === 'won') banner('VICTORY', '탭하여 다시 시작', '#ffe066');
-  if (phase === 'lost') banner('DEFEAT', '탭하여 다시 시작', '#ff6b6b');
-}
-
-function roundRect(x: number, y: number, w: number, h: number, r: number): void {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2));
+    ctx.font = '18px sans-serif';
+    ctx.fillText(`${Math.floor(scroll / 30)}m 전진 · 몬스터 ${kills}마리 처치`, W / 2, H / 2);
+    ctx.fillText(`최고 기록 ${best}마리`, W / 2, H / 2 + 30);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#c9c3ff';
+    ctx.fillText('탭하여 다시 시작', W / 2, H / 2 + 70);
+  }
 }
 
 // ---- 루프 ----
