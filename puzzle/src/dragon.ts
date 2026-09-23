@@ -1,5 +1,7 @@
-// 용 몬스터 절차적 렌더링 (왼쪽=기사 방향을 바라봄, 원점=발밑 중앙)
+// 용 몬스터 관절 리그 (왼쪽=기사 방향을 바라봄, 원점=발밑 중앙)
+// 목 5마디 · 꼬리 8마디 · 날개(어깨/팔꿈치/손목 + 손가락뼈 3) · 다리 4개(IK로 발을 땅에 고정)
 
+import { lerp, limb, sampleKeyframes, solveIK, step, type Keyframes, type Pt } from './anim';
 import type { EnemyKind } from './battle';
 
 interface Palette {
@@ -27,148 +29,182 @@ export const BREATH_COLOR: Record<EnemyKind, [string, string]> = {
   spirit: ['#f0e0ff', '#8a3aff'],
 };
 
-/** 발밑 원점 기준 입 위치 (브레스 시작점) */
-export function mouthOffset(jaw: number): { x: number; y: number } {
-  return { x: -104 - jaw * 10, y: -98 };
-}
 
-export interface DragonPose {
+type DPose = {
+  bx: number; // 몸통 이동
+  by: number;
+  pitch: number; // 몸통 앞뒤 기울기
+  neck: number; // -1 젖힘 · 0 기본 · 1 물기
+  drop: number; // 0~1 쓰러짐(목/꼬리 늘어짐)
+  fold: number; // 0~1 날개 접기
+  jaw: number;
+  fs: number; // 앞발 내딛기(x)
+  fy: number; // 앞발 들기(y)
+};
+
+const ATTACK: Keyframes<DPose> = [
+  [0, {}],
+  [0.3, { bx: 10, by: 3, pitch: 0.06, neck: -0.8, jaw: 0.3, fs: -8, fy: -10 }],
+  [0.55, { bx: -34, by: 8, pitch: -0.1, neck: 1, jaw: 1, fs: -26, fy: 0 }],
+  [0.8, { bx: -30, by: 8, pitch: -0.08, neck: 1, jaw: 0.9, fs: -26, fy: 0 }],
+  [1, {}],
+];
+const HURT: Keyframes<DPose> = [
+  [0, {}],
+  [0.25, { bx: 12, by: -2, pitch: 0.1, neck: -0.5, jaw: 0.45 }],
+  [1, {}],
+];
+const DEATH: Keyframes<DPose> = [
+  [0, {}],
+  [0.4, { by: 10, pitch: -0.05, neck: -0.6, jaw: 0.8, fold: 0.4 }],
+  [1, { by: 26, pitch: 0.12, drop: 1, fold: 1, jaw: 0.3 }],
+];
+export const DRAGON_ATTACK_MS = 480;
+const HURT_MS = 260;
+const DEATH_MS = 650;
+
+// 목 각도 세트 (캔버스 각도, 5마디 + 머리)
+const NECK_IDLE = [-2.0, -2.1, -2.4, -2.7, -2.9, -3.0];
+const NECK_BITE = [-2.6, -2.8, -2.95, -3.1, -3.2, -3.35];
+const NECK_REAR = [-1.7, -1.75, -1.9, -2.1, -2.4, -2.6];
+const NECK_DROP = [-3.1, -3.3, -3.5, -3.7, -3.8, -3.9];
+const NECK_SEG = 12;
+const TAIL_SEG = 11;
+const TAIL_N = 8;
+
+export interface DragonAnim {
   kind: EnemyKind;
   boss: boolean;
   now: number;
-  /** 0~1: 입 벌림 + 머리 전진 */
-  jaw: number;
-  hurt: boolean;
+  /** 공격 시작 후 경과 ms (없으면 null) */
+  attackAge: number | null;
+  hurtAge: number | null;
+  deathAge: number | null;
 }
 
-export function drawDragon(ctx: CanvasRenderingContext2D, pose: DragonPose): void {
-  const { kind, boss, now, jaw, hurt } = pose;
-  let p = PALETTE[kind];
-  if (boss) p = { ...p, horn: '#ffd24a' };
-  if (hurt) p = mapPalette(p, (c) => mix(c, '#ffffff', 0.55));
+function dragonPose(a: DragonAnim): DPose {
+  const b = Math.sin(a.now / 700);
+  let pose: DPose = {
+    bx: 0,
+    by: 1.5 * b,
+    pitch: 0.012 * b,
+    neck: 0.08 * Math.sin(a.now / 900),
+    drop: 0,
+    fold: 0,
+    jaw: 0.06 + 0.06 * Math.sin(a.now / 1300),
+    fs: 0,
+    fy: 0,
+  };
+  if (a.attackAge !== null && a.attackAge <= DRAGON_ATTACK_MS) pose = sampleKeyframes(ATTACK, a.attackAge / DRAGON_ATTACK_MS, pose);
+  if (a.hurtAge !== null && a.hurtAge <= HURT_MS) pose = sampleKeyframes(HURT, a.hurtAge / HURT_MS, pose);
+  if (a.deathAge !== null) pose = sampleKeyframes(DEATH, Math.min(1, a.deathAge / DEATH_MS), pose);
+  return pose;
+}
 
-  const flap = Math.sin(now / 260);
-  const breath = Math.sin(now / 700);
-  const sway = Math.sin(now / 500);
+/** 용을 그리고 입 위치(발밑 원점 기준)를 반환 */
+export function drawDragon(ctx: CanvasRenderingContext2D, a: DragonAnim, hurt: boolean): Pt {
+  let p = PALETTE[a.kind];
+  if (a.boss) p = { ...p, horn: '#ffd24a' };
+  if (hurt) p = mapPalette(p, (c) => mix(c, '#ffffff', 0.55));
+  const pose = dragonPose(a);
+  const now = a.now;
+
+  // 몸통 좌표계 → 발밑 좌표계
+  const C = { x: 16, y: -54 };
+  const cos = Math.cos(pose.pitch);
+  const sin = Math.sin(pose.pitch);
+  const B = (x: number, y: number): Pt => ({
+    x: C.x + (x - C.x) * cos - (y - C.y) * sin + pose.bx,
+    y: C.y + (x - C.x) * sin + (y - C.y) * cos + pose.by,
+  });
 
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  if (kind === 'spirit') {
+  if (a.kind === 'spirit') {
     ctx.shadowColor = p.eye;
     ctx.shadowBlur = 16;
     ctx.globalAlpha *= 0.9;
   }
 
-  drawWing(ctx, p.dark, p.dark, p.horn, 14, -74, flap + 0.3, 0.85);
-  drawTail(ctx, p, sway, kind);
-  drawLeg(ctx, p.dark, p.horn, 54, -40, true);
-  drawLeg(ctx, p.dark, p.horn, -4, -42, false);
-  drawBody(ctx, p, breath, kind);
-  const head = { x: -58 - jaw * 10, y: -100 + Math.sin(now / 650) * 3 - jaw * 4 };
-  drawNeck(ctx, p, head);
-  drawHead(ctx, p, head, jaw, boss, now);
-  drawLeg(ctx, p.body, p.horn, 42, -38, true);
-  drawLeg(ctx, p.body, p.horn, -16, -40, false);
-  drawWing(ctx, p.wing, p.dark, p.horn, 2, -72, flap, 1);
+  const flap = now / 260;
+  drawWing(ctx, p.dark, p.dark, p.horn, B(14, -74), B(50, -66), flap + 0.3, pose, 0.85);
+  drawTail(ctx, p, B(54, -48), pose, now, a.kind);
+  drawLeg(ctx, p.dark, p.horn, B(54, -44), { x: 64, y: -9 }, { x: 50, y: -1 }, true);
+  drawLeg(ctx, p.dark, p.horn, B(-4, -46), { x: -6 + pose.fs * 0.8, y: -7 + pose.fy }, { x: -16 + pose.fs * 0.8, y: -1 + pose.fy }, false);
 
-  ctx.restore();
-}
-
-type Pt = { x: number; y: number };
-
-function quad(a: Pt, c: Pt, b: Pt, t: number): Pt {
-  const u = 1 - t;
-  return { x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y };
-}
-
-function spike(ctx: CanvasRenderingContext2D, at: Pt, dir: number, len: number, w: number): void {
-  const nx = Math.cos(dir);
-  const ny = Math.sin(dir);
-  ctx.beginPath();
-  ctx.moveTo(at.x - ny * w, at.y + nx * w);
-  ctx.lineTo(at.x + nx * len, at.y + ny * len);
-  ctx.lineTo(at.x + ny * w, at.y - nx * w);
-  ctx.fill();
-}
-
-function drawWing(
-  ctx: CanvasRenderingContext2D,
-  membrane: string,
-  bone: string,
-  claw: string,
-  ax: number,
-  ay: number,
-  flap: number,
-  scale: number,
-): void {
   ctx.save();
-  ctx.translate(ax, ay);
-  ctx.rotate(-0.2 - flap * 0.35);
-  ctx.scale(scale, scale);
-
-  ctx.fillStyle = membrane;
-  ctx.globalAlpha *= 0.93;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(34, -56);
-  ctx.lineTo(60, -82);
-  ctx.lineTo(122, -96);
-  ctx.quadraticCurveTo(104, -72, 126, -56);
-  ctx.quadraticCurveTo(100, -42, 106, -16);
-  ctx.quadraticCurveTo(78, -12, 42, 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha /= 0.93;
-
-  ctx.strokeStyle = bone;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(34, -56);
-  ctx.lineTo(60, -82);
-  ctx.stroke();
-  ctx.lineWidth = 3;
-  for (const [fx, fy] of [[122, -96], [126, -56], [106, -16]]) {
-    ctx.beginPath();
-    ctx.moveTo(60, -82);
-    ctx.lineTo(fx, fy);
-    ctx.stroke();
-  }
-  ctx.fillStyle = claw;
-  spike(ctx, { x: 60, y: -84 }, -2.2, 12, 3);
+  ctx.translate(pose.bx, pose.by);
+  ctx.translate(C.x, C.y);
+  ctx.rotate(pose.pitch);
+  ctx.translate(-C.x, -C.y);
+  drawBody(ctx, p, Math.sin(now / 700), a.kind);
   ctx.restore();
+
+  const mouth = drawNeckAndHead(ctx, p, B(-16, -60), pose, now, a.boss);
+
+  drawLeg(ctx, p.body, p.horn, B(42, -42), { x: 52, y: -9 }, { x: 38, y: -1 }, true);
+  drawLeg(ctx, p.body, p.horn, B(-14, -44), { x: -18 + pose.fs, y: -7 + pose.fy }, { x: -28 + pose.fs, y: -1 + pose.fy }, false);
+  drawWing(ctx, p.wing, p.dark, p.horn, B(2, -72), B(40, -66), flap, pose, 1);
+
+  ctx.restore();
+  return mouth;
 }
 
-function drawTail(ctx: CanvasRenderingContext2D, p: Palette, sway: number, kind: EnemyKind): void {
-  const a = { x: 52, y: -46 };
-  const c = { x: 98, y: -34 + sway * 5 };
-  const b = { x: 134, y: -72 + sway * 12 };
-  const N = 14;
-  ctx.strokeStyle = p.body;
-  let prev = a;
-  for (let i = 1; i <= N; i++) {
-    const t = i / N;
-    const pt = quad(a, c, b, t);
-    ctx.lineWidth = 22 - t * 17;
-    ctx.beginPath();
-    ctx.moveTo(prev.x, prev.y);
-    ctx.lineTo(pt.x, pt.y);
-    ctx.stroke();
-    prev = pt;
+function neckAngles(pose: DPose, now: number): number[] {
+  const n = pose.neck;
+  return NECK_IDLE.map((d, i) => {
+    let v = n >= 0 ? lerp(d, NECK_BITE[i], n) : lerp(d, NECK_REAR[i], -n);
+    v = lerp(v, NECK_DROP[i], pose.drop);
+    return v + pose.pitch + 0.04 * Math.sin(now / 500 - i * 0.7) * (1 - pose.drop);
+  });
+}
+
+function drawNeckAndHead(ctx: CanvasRenderingContext2D, p: Palette, base: Pt, pose: DPose, now: number, boss: boolean): Pt {
+  const ang = neckAngles(pose, now);
+  const joints: Pt[] = [base];
+  for (let i = 0; i < 5; i++) joints.push(step(joints[i], ang[i], NECK_SEG));
+
+  for (let i = 0; i < 5; i++) limb(ctx, joints[i], joints[i + 1], 27 - i * 2, p.body);
+  for (let i = 0; i < 5; i++) {
+    const o = ang[i] - Math.PI / 2;
+    limb(ctx, step(joints[i], o, 7), step(joints[i + 1], o, 6), 9 - i * 0.6, p.belly);
   }
-  // 등 가시
   ctx.fillStyle = p.dark;
-  for (const t of [0.15, 0.35, 0.55, 0.75]) {
-    const pt = quad(a, c, b, t);
-    spike(ctx, { x: pt.x, y: pt.y - (10 - t * 7) }, -Math.PI / 2 + 0.5, 12 - t * 6, 4);
+  for (let i = 1; i < 5; i++) spike(ctx, step(joints[i], ang[i] + Math.PI / 2, 11 - i), ang[i] + Math.PI / 2 + 0.5, 11 - i, 4);
+
+  const headAng = ang[5];
+  const end = joints[5];
+  ctx.save();
+  ctx.translate(end.x, end.y);
+  ctx.rotate(headAng + Math.PI);
+  ctx.translate(-10, -2);
+  drawHead(ctx, p, pose.jaw, boss, now);
+  ctx.restore();
+
+  // 입 끝(머리 좌표 (-47, 2))을 발밑 좌표로
+  const r = headAng + Math.PI;
+  const lx = -57;
+  const ly = 0;
+  return { x: end.x + lx * Math.cos(r) - ly * Math.sin(r), y: end.y + lx * Math.sin(r) + ly * Math.cos(r) };
+}
+
+function drawTail(ctx: CanvasRenderingContext2D, p: Palette, base: Pt, pose: DPose, now: number, kind: EnemyKind): void {
+  const joints: Pt[] = [base];
+  const ang: number[] = [];
+  for (let i = 0; i < TAIL_N; i++) {
+    const idle = 0.3 - i * 0.13 + 0.18 * (0.3 + i / TAIL_N) * Math.sin(now / 450 - i * 0.6);
+    const a = lerp(idle, 0.12 - i * 0.02, pose.drop) + pose.pitch;
+    ang.push(a);
+    joints.push(step(joints[i], a, TAIL_SEG));
   }
-  // 꼬리 끝: 스페이드 / 영룡은 불꽃
-  const tip = b;
-  const dir = Math.atan2(b.y - c.y, b.x - c.x);
+  for (let i = 0; i < TAIL_N; i++) limb(ctx, joints[i], joints[i + 1], 21 - i * 2.1, p.body);
+  ctx.fillStyle = p.dark;
+  for (let i = 1; i < TAIL_N - 1; i += 2) spike(ctx, step(joints[i], ang[i] - Math.PI / 2, 9 - i * 0.7), ang[i] - Math.PI / 2 + 0.5, 11 - i, 4);
+  const tip = joints[TAIL_N];
   ctx.save();
   ctx.translate(tip.x, tip.y);
-  ctx.rotate(dir);
+  ctx.rotate(ang[TAIL_N - 1]);
   ctx.fillStyle = kind === 'spirit' ? p.eye : p.dark;
   ctx.beginPath();
   ctx.moveTo(-4, 0);
@@ -180,22 +216,83 @@ function drawTail(ctx: CanvasRenderingContext2D, p: Palette, sway: number, kind:
   ctx.restore();
 }
 
-function drawLeg(ctx: CanvasRenderingContext2D, color: string, claw: string, hx: number, hy: number, rear: boolean): void {
-  const knee = rear ? { x: hx + 10, y: hy + 20 } : { x: hx - 6, y: hy + 20 };
-  const foot = { x: hx + (rear ? -2 : -8), y: -3 };
-  ctx.strokeStyle = color;
-  ctx.lineWidth = rear ? 18 : 15;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.lineTo(knee.x, knee.y);
-  ctx.stroke();
-  ctx.lineWidth = rear ? 11 : 10;
-  ctx.beginPath();
-  ctx.moveTo(knee.x, knee.y);
-  ctx.lineTo(foot.x, foot.y);
-  ctx.stroke();
+/** 다리: 뿌리→발목은 IK, 발목→발가락은 땅에 고정 */
+function drawLeg(ctx: CanvasRenderingContext2D, color: string, claw: string, root: Pt, ankle: Pt, toe: Pt, rear: boolean): void {
+  const [knee, ank] = rear ? solveIK(root, ankle, 26, 26, 1) : solveIK(root, ankle, 22, 22, -1);
+  const w = rear ? [22, 13, 9] : [16, 11, 8];
+  if (rear) {
+    // 허벅지 근육
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse((root.x + knee.x) / 2, (root.y + knee.y) / 2, 17, 11, Math.atan2(knee.y - root.y, knee.x - root.x), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  limb(ctx, root, knee, w[0], color);
+  limb(ctx, knee, ank, w[1], color);
+  limb(ctx, ank, toe, w[2], color);
   ctx.fillStyle = claw;
-  for (let i = 0; i < 3; i++) spike(ctx, { x: foot.x - 4 + i * 5, y: -2 }, Math.PI - 0.2, 9, 2.5);
+  for (let i = 0; i < 3; i++) spike(ctx, { x: toe.x - 2 + i * 5, y: toe.y - 1 }, Math.PI - 0.2, 9, 2.5);
+}
+
+function drawWing(
+  ctx: CanvasRenderingContext2D,
+  membrane: string,
+  bone: string,
+  claw: string,
+  shoulder: Pt,
+  attach: Pt,
+  phase: number,
+  pose: DPose,
+  scale: number,
+): void {
+  const s = Math.sin(phase);
+  const f = pose.fold;
+  const θs = lerp(-1.02 - 0.4 * s, -0.4, f) + pose.pitch;
+  const elbowRel = lerp(0.24 + 0.25 * Math.cos(phase), 2.6, f);
+  const spread = 1 - 0.12 * s;
+  const fingerRel = [0.57, 1.19, 1.84].map((r, i) => lerp(r * spread, [0.3, 0.45, 0.6][i], f));
+  const fingerLen = [64, 71, 80].map((l) => l * scale * (1 - 0.4 * f));
+
+  const elbow = step(shoulder, θs, 65 * scale);
+  const θf = θs + elbowRel;
+  const wrist = step(elbow, θf, 37 * scale);
+  const tips = fingerRel.map((r, i) => step(wrist, θf + r, fingerLen[i]));
+
+  const toward = (a: Pt, b: Pt, k: number): Pt => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  ctx.fillStyle = membrane;
+  ctx.globalAlpha *= 0.93;
+  ctx.beginPath();
+  ctx.moveTo(shoulder.x, shoulder.y);
+  ctx.lineTo(elbow.x, elbow.y);
+  ctx.lineTo(wrist.x, wrist.y);
+  ctx.lineTo(tips[0].x, tips[0].y);
+  for (let i = 1; i < 3; i++) {
+    const c = toward(mid(tips[i - 1], tips[i]), wrist, 0.3);
+    ctx.quadraticCurveTo(c.x, c.y, tips[i].x, tips[i].y);
+  }
+  const c = toward(mid(tips[2], attach), wrist, 0.3);
+  ctx.quadraticCurveTo(c.x, c.y, attach.x, attach.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha /= 0.93;
+
+  limb(ctx, shoulder, elbow, 6, bone);
+  limb(ctx, elbow, wrist, 5, bone);
+  for (const t of tips) limb(ctx, wrist, t, 3, bone);
+  ctx.fillStyle = claw;
+  spike(ctx, wrist, θf - 0.9, 12, 3);
+}
+
+function spike(ctx: CanvasRenderingContext2D, at: Pt, dir: number, len: number, w: number): void {
+  const nx = Math.cos(dir);
+  const ny = Math.sin(dir);
+  ctx.beginPath();
+  ctx.moveTo(at.x - ny * w, at.y + nx * w);
+  ctx.lineTo(at.x + nx * len, at.y + ny * len);
+  ctx.lineTo(at.x + ny * w, at.y - nx * w);
+  ctx.fill();
 }
 
 function drawBody(ctx: CanvasRenderingContext2D, p: Palette, breath: number, kind: EnemyKind): void {
@@ -255,33 +352,8 @@ function drawBody(ctx: CanvasRenderingContext2D, p: Palette, breath: number, kin
   }
 }
 
-function drawNeck(ctx: CanvasRenderingContext2D, p: Palette, head: Pt): void {
-  const a = { x: -16, y: -60 };
-  const c = { x: -48, y: -62 };
-  const b = { x: head.x + 8, y: head.y + 4 };
-  ctx.strokeStyle = p.body;
-  ctx.lineWidth = 26;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.quadraticCurveTo(c.x, c.y, b.x, b.y);
-  ctx.stroke();
-  // 목 앞쪽 비늘
-  ctx.strokeStyle = p.belly;
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(a.x - 6, a.y + 8);
-  ctx.quadraticCurveTo(c.x - 6, c.y + 6, b.x - 6, b.y + 8);
-  ctx.stroke();
-  ctx.fillStyle = p.dark;
-  for (const t of [0.25, 0.5, 0.75]) {
-    const pt = quad(a, c, b, t);
-    spike(ctx, { x: pt.x + 6, y: pt.y - 10 }, -Math.PI / 2 + 0.6, 11, 4);
-  }
-}
-
-function drawHead(ctx: CanvasRenderingContext2D, p: Palette, head: Pt, jaw: number, boss: boolean, now: number): void {
+function drawHead(ctx: CanvasRenderingContext2D, p: Palette, jaw: number, boss: boolean, now: number): void {
   ctx.save();
-  ctx.translate(head.x, head.y);
 
   // 뿔
   ctx.fillStyle = p.horn;

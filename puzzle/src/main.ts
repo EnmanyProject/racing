@@ -1,7 +1,9 @@
 // Rune Knight: 렌더링, 입력, 턴 진행
 // 상단: 횡으로 전진하는 기사와 몬스터 / 하단: 기사를 지원하는 룬 퍼즐
 
-import { BREATH_COLOR, drawDragon, mouthOffset } from './dragon';
+import { BREATH_COLOR, DRAGON_ATTACK_MS, drawDragon } from './dragon';
+import { drawKnight as drawKnightRig, moveDuration, type KnightMove } from './knight';
+import type { Pt } from './anim';
 import {
   COLS,
   ROWS,
@@ -72,7 +74,8 @@ const ORB_NAME: Record<Orb, string> = {
 
 type Phase = 'walk' | 'idle' | 'drag' | 'clear' | 'fall' | 'act' | 'enemy' | 'defeat' | 'lost';
 
-type QueuedAction = Action | { type: 'finisher'; value: number };
+/** windup: 공격 모션을 이미 시작한 상태 */
+type QueuedAction = (Action | { type: 'finisher'; value: number }) & { windup?: boolean };
 
 interface Float {
   text: string;
@@ -123,8 +126,12 @@ let harmony = false;
 let toast: { text: string; t0: number } | null = null;
 let shakeUntil = 0;
 let spellFlash: number[] = [];
-let knightLungeT = -1e9;
+let knightMove: KnightMove | null = null;
+let knightMoveT = -1e9;
 let knightHurtT = -1e9;
+let knightCenter: Pt = { x: KNIGHT_X, y: GROUND_Y - 45 };
+let swordTip: Pt = { x: KNIGHT_X + 40, y: GROUND_Y - 60 };
+let dragonMouth: Pt = { x: ENEMY_X - 90, y: GROUND_Y - 90 };
 let enemyLungeT = -1e9;
 let enemyHurtT = -1e9;
 
@@ -219,7 +226,6 @@ function runAction(a: QueuedAction, now: number): void {
       if (enemy.hp <= 0) return;
       enemy.hp = Math.max(0, enemy.hp - a.value);
       enemyHurtT = now;
-      if (a.type === 'phys') knightLungeT = now;
       fx.push({ type: a.type === 'phys' ? 'slash' : 'bolt', t0: now, dur: 280, heavy: a.heavy });
       const tag = a.heavy ? '강타 ' : a.pierce ? '관통 ' : '';
       addFloat(tag + a.value, enemyX + rand(-20, 20), GROUND_Y - 110, ORB_COLOR[a.type === 'phys' ? Orb.Sword : Orb.Magic][0], a.heavy ? 28 : 22, now, 900);
@@ -227,6 +233,7 @@ function runAction(a: QueuedAction, now: number): void {
       break;
     }
     case 'heal': {
+      knightAct('buff', now);
       const before = knight.hp;
       knight.hp = Math.min(knight.maxHp, knight.hp + a.value);
       fx.push({ type: 'heal', t0: now, dur: 500 });
@@ -235,12 +242,14 @@ function runAction(a: QueuedAction, now: number): void {
       break;
     }
     case 'shield':
+      knightAct('guard', now);
       knight.shield += a.value;
       fx.push({ type: 'shield', t0: now, dur: 500 });
       addFloat(`보호막 +${a.value}`, kx, ky - 50, ORB_COLOR[Orb.Shield][0], 18, now, 900);
       beep(440, 0.12);
       break;
     case 'energy':
+      knightAct('buff', now);
       knight.energy = Math.min(100, knight.energy + a.value);
       fx.push({ type: 'energy', t0: now, dur: 400 });
       addFloat(`기력 +${a.value}`, kx, ky - 50, ORB_COLOR[Orb.Energy][0], 18, now, 900);
@@ -250,7 +259,6 @@ function runAction(a: QueuedAction, now: number): void {
       if (enemy.hp <= 0) return;
       enemy.hp = Math.max(0, enemy.hp - a.value);
       enemyHurtT = now;
-      knightLungeT = now;
       shakeUntil = now + 300;
       fx.push({ type: 'finisher', t0: now, dur: 600 });
       addFloat(`필살 ${a.value}`, enemyX, GROUND_Y - 130, '#ffe066', 34, now, 1200);
@@ -259,24 +267,38 @@ function runAction(a: QueuedAction, now: number): void {
   }
 }
 
+/** 공격 모션 시작부터 타격 프레임까지의 시간(ms) */
+const WINDUP: Partial<Record<QueuedAction['type'], number>> = { phys: 170, magic: 120, finisher: 370 };
+const ANIM_OF: Partial<Record<QueuedAction['type'], KnightMove>> = { phys: 'slash', magic: 'cast', finisher: 'finisher' };
+
 function stepActions(now: number): void {
   if (now < nextActionAt) return;
   const a = actions.shift();
-  if (a) {
-    if (a.type === 'finisher') {
-      // 몬스터가 이미 쓰러졌으면 필살기는 다음 몬스터를 위해 아껴 둔다
-      if (enemy.hp > 0) {
-        runAction({ type: 'finisher', value: finisherDamage(knight) }, now);
-        knight.energy = 0;
-      }
-    } else {
-      runAction(a, now);
-      queueFinisher();
-    }
-    nextActionAt = now + (a.type === 'finisher' ? 700 : ACTION_MS);
+  if (!a) {
+    afterActions(now);
     return;
   }
-  afterActions(now);
+  const windup = WINDUP[a.type];
+  if (windup && !a.windup) {
+    // 몬스터가 이미 쓰러졌으면 공격은 생략 (필살 게이지는 다음 몬스터를 위해 보존)
+    if (enemy.hp <= 0) {
+      nextActionAt = now;
+      return;
+    }
+    knightAct(ANIM_OF[a.type]!, now);
+    actions.unshift({ ...a, windup: true });
+    nextActionAt = now + windup;
+    return;
+  }
+  if (a.type === 'finisher') {
+    runAction({ type: 'finisher', value: finisherDamage(knight) }, now);
+    knight.energy = 0;
+    nextActionAt = now + 450;
+    return;
+  }
+  runAction(a, now);
+  queueFinisher();
+  nextActionAt = now + ACTION_MS - (windup ?? 0) * 0.5;
 }
 
 /** 기력이 가득 차면 행동 큐 끝에 필살기 추가 */
@@ -297,7 +319,7 @@ function afterActions(now: number): void {
   enemy.turns--;
   if (enemy.turns <= 0) {
     enemyLungeT = now;
-    fx.push({ type: 'breath', t0: now, dur: 520 });
+    fx.push({ type: 'breath', t0: now + DRAGON_ATTACK_MS * 0.4, dur: 450 });
     setPhase('enemy', now);
     return;
   }
@@ -311,6 +333,7 @@ function enemyStrike(now: number): void {
   enemy.attacks++;
   enemy.turns = enemy.maxTurns;
   knightHurtT = now;
+  knightAct('hurt', now);
   shakeUntil = now + (intent.heavy ? 500 : 300);
   fx.push({ type: 'hit', t0: now, dur: 300 });
   if (blocked) addFloat(`막음 ${blocked}`, KNIGHT_X, GROUND_Y - 150, ORB_COLOR[Orb.Shield][0], 16, now, 1000);
@@ -495,7 +518,7 @@ function update(dt: number, now: number): void {
       if (now - phaseT > 700) setPhase(knight.hp <= 0 ? 'lost' : 'idle', now);
       break;
     case 'defeat':
-      if (now - phaseT > 800) {
+      if (now - phaseT > 1100) {
         enemyIndex++;
         spawnEnemy(now);
       }
@@ -587,85 +610,24 @@ function drawScene(now: number): void {
 }
 
 function drawKnight(now: number): void {
-  const walking = phase === 'walk';
-  const lunge = lungeCurve(now - knightLungeT, 260) * 60;
-  const hurt = now - knightHurtT < 300;
-  const x = KNIGHT_X + lunge - (hurt ? 10 : 0);
-  const stepPhase = walking ? Math.sin(now / 90) : 0;
-  const bob = walking ? Math.abs(Math.sin(now / 90)) * -3 : Math.sin(now / 600) * 1.5;
-
-  ctx.save();
-  ctx.translate(x, GROUND_Y + bob);
-  if (hurt && Math.floor(now / 60) % 2) ctx.globalAlpha = 0.5;
-
-  // 다리
-  ctx.fillStyle = '#39414f';
-  ctx.fillRect(-10 + stepPhase * 5, -24, 8, 24);
-  ctx.fillRect(2 - stepPhase * 5, -24, 8, 24);
-
-  // 방패(뒤쪽 팔)
-  ctx.fillStyle = '#2b5cd6';
-  ctx.strokeStyle = '#ffd24a';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-26, -54);
-  ctx.lineTo(-10, -54);
-  ctx.lineTo(-10, -36);
-  ctx.quadraticCurveTo(-18, -24, -26, -36);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 몸통 갑옷
-  const armor = ctx.createLinearGradient(-14, -60, 14, -20);
-  armor.addColorStop(0, '#eef2f8');
-  armor.addColorStop(1, '#8a94a8');
-  ctx.fillStyle = armor;
-  ctx.beginPath();
-  ctx.roundRect(-14, -60, 28, 38, 6);
-  ctx.fill();
-  ctx.fillStyle = '#2b5cd6';
-  ctx.fillRect(-7, -52, 14, 28);
-  ctx.fillStyle = '#ffd24a';
-  ctx.fillRect(-7, -40, 14, 3);
-
-  // 투구
-  ctx.fillStyle = armor;
-  ctx.beginPath();
-  ctx.arc(0, -70, 12, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(2, -72, 10, 3);
-  ctx.strokeStyle = '#e8391c';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(-2, -82);
-  ctx.quadraticCurveTo(-12, -90, -20, -74);
-  ctx.stroke();
-
-  // 검: 평소엔 치켜들고, 공격 시 앞으로 휘두름
-  const swing = lungeCurve(now - knightLungeT, 260);
-  const angle = -1.2 + swing * 1.9;
-  const casting = fx.some((f) => f.type === 'bolt');
-  ctx.translate(12, -44);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#6b4a2b';
-  ctx.fillRect(-4, -3, 10, 6);
-  ctx.fillStyle = '#ffd24a';
-  ctx.fillRect(5, -8, 4, 16);
-  ctx.fillStyle = casting ? ORB_COLOR[Orb.Magic][0] : '#dfe6f0';
-  if (casting) {
-    ctx.shadowColor = ORB_COLOR[Orb.Magic][1];
-    ctx.shadowBlur = 16;
-  }
-  ctx.beginPath();
-  ctx.moveTo(9, -3);
-  ctx.lineTo(48, -2);
-  ctx.lineTo(54, 0);
-  ctx.lineTo(48, 2);
-  ctx.lineTo(9, 3);
-  ctx.fill();
-  ctx.restore();
+  const hurt = knightMove === 'hurt' && now - knightMoveT < 300;
+  const casting = knightMove === 'cast' && now - knightMoveT < moveDuration('cast');
+  const res = drawKnightRig(
+    ctx,
+    KNIGHT_X,
+    GROUND_Y,
+    {
+      now,
+      walking: phase === 'walk',
+      move: knightMove,
+      moveT: knightMoveT,
+      deadT: phase === 'lost' ? phaseT : null,
+      glow: casting ? ORB_COLOR[Orb.Magic][0] : knight.energy >= 100 ? '#ffe066' : null,
+    },
+    hurt && Math.floor(now / 60) % 2 ? 0.5 : 1,
+  );
+  knightCenter = res.center;
+  swordTip = res.swordTip;
 
   // 보호막 버블
   if (knight.shield > 0) {
@@ -675,7 +637,7 @@ function drawKnight(now: number): void {
     ctx.strokeStyle = ORB_COLOR[Orb.Shield][1];
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(x, GROUND_Y - 45, 44, 52, 0, 0, Math.PI * 2);
+    ctx.ellipse(knightCenter.x, knightCenter.y - 6, 44, 52, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 0.8;
     ctx.stroke();
@@ -683,36 +645,51 @@ function drawKnight(now: number): void {
   }
 }
 
-/** 0→1→0 형태의 돌진 곡선 */
+function knightAct(move: KnightMove, now: number): void {
+  knightMove = move;
+  knightMoveT = now;
+}
+
 function enemyScale(): number {
   return enemy.boss ? 1.15 : 0.92;
 }
 
-function lungeCurve(t: number, dur: number): number {
-  if (t < 0 || t > dur) return 0;
-  return Math.sin((t / dur) * Math.PI);
+function enemyHover(now: number): number {
+  return enemy.kind === 'spirit' ? -14 + Math.sin(now / 300) * 6 : 0;
 }
 
 function drawEnemy(now: number): void {
-  const dying = phase === 'defeat' ? Math.min(1, (now - phaseT) / 600) : 0;
+  const defeatAge = phase === 'defeat' ? now - phaseT : null;
+  const fade = defeatAge === null ? 0 : Math.max(0, Math.min(1, (defeatAge - 550) / 450));
   const S = enemyScale();
-  const jaw = lungeCurve(now - enemyLungeT, 420);
   const hurt = now - enemyHurtT < 200;
-  const x = enemyX - jaw * 40 + (hurt ? rand(-4, 4) : 0);
-  const hover = enemy.kind === 'spirit' ? -14 + Math.sin(now / 300) * 6 : 0;
+  const x = enemyX + (hurt ? rand(-3, 3) : 0);
+  const hover = enemyHover(now) * (defeatAge === null ? 1 : Math.max(0, 1 - defeatAge / 400));
 
   // 그림자
   ctx.fillStyle = '#0006';
   ctx.beginPath();
-  ctx.ellipse(x + 20 * S, GROUND_Y + 2, 70 * S * (1 - dying * 0.5), 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 20 * S, GROUND_Y + 2, 70 * S * (1 - fade * 0.5), 8, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
-  ctx.globalAlpha = 1 - dying;
-  ctx.translate(x, GROUND_Y + hover + dying * 20);
+  ctx.globalAlpha = 1 - fade;
+  ctx.translate(x, GROUND_Y + hover);
   ctx.scale(S, S);
-  drawDragon(ctx, { kind: enemy.kind, boss: enemy.boss, now, jaw, hurt });
+  const mouth = drawDragon(
+    ctx,
+    {
+      kind: enemy.kind,
+      boss: enemy.boss,
+      now,
+      attackAge: phase === 'enemy' ? now - enemyLungeT : null,
+      hurtAge: now - enemyHurtT < 400 ? now - enemyHurtT : null,
+      deathAge: defeatAge,
+    },
+    hurt,
+  );
   ctx.restore();
+  dragonMouth = { x: x + mouth.x * S, y: GROUND_Y + hover + mouth.y * S };
 
   if (phase === 'defeat') return;
 
@@ -775,13 +752,15 @@ function drawFx(now: number): void {
         break;
       }
       case 'bolt': {
-        const sx = KNIGHT_X + 40;
-        const px = sx + (ex - sx) * Math.min(1, t * 2.2);
+        const sx = swordTip.x;
+        const k = Math.min(1, t * 2.2);
+        const px = sx + (ex - sx) * k;
+        const py = swordTip.y + (ey - 10 - swordTip.y) * k;
         ctx.fillStyle = ORB_COLOR[Orb.Magic][0];
         ctx.shadowColor = ORB_COLOR[Orb.Magic][1];
         ctx.shadowBlur = 20;
         ctx.beginPath();
-        ctx.arc(px, ey - 10, f.heavy ? 16 : 11, 0, Math.PI * 2);
+        ctx.arc(px, py, f.heavy ? 16 : 11, 0, Math.PI * 2);
         ctx.fill();
         if (t > 0.45) {
           ctx.beginPath();
@@ -832,12 +811,11 @@ function drawFx(now: number): void {
         break;
       case 'breath': {
         const [core, edge] = BREATH_COLOR[enemy.kind];
-        const S = enemyScale();
-        const m = mouthOffset(1);
-        const mx = enemyX - 40 + m.x * S;
-        const my = GROUND_Y + m.y * S;
-        const tx = KNIGHT_X;
-        const ty = GROUND_Y - 45;
+        if (t < 0) break;
+        const mx = dragonMouth.x;
+        const my = dragonMouth.y;
+        const tx = knightCenter.x;
+        const ty = knightCenter.y;
         ctx.globalAlpha = 1;
         for (let i = 0; i < 14; i++) {
           const k = Math.min(1, t * 1.6 - i * 0.04);
