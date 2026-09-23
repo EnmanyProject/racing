@@ -145,4 +145,11 @@ describe('battle', () => {
     expect(normal.boss).toBe(false);
     expect(boss.maxHp).toBeGreaterThan(normal.maxHp * 2);
   });
+
+  it('non-dragon monsters appear between dragons', () => {
+    const rng = seededRng(5);
+    const species = Array.from({ length: 10 }, (_, i) => createEnemy(i, rng).species);
+    for (const i of [0, 2, 4, 5, 7, 9]) expect(species[i]).toBe('dragon');
+    for (const i of [1, 3, 6, 8]) expect(species[i]).not.toBe('dragon');
+  });
 });

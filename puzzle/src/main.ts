@@ -2,6 +2,7 @@
 // 상단: 횡으로 전진하는 기사와 몬스터 / 하단: 기사를 지원하는 룬 퍼즐
 
 import { BREATH_COLOR, DRAGON_ATTACK_MS, drawDragon } from './dragon';
+import { drawGolem, drawWolf, drawWraith, type MonsterAnim } from './monsters';
 import { drawKnight as drawKnightRig, moveDuration, type KnightMove } from './knight';
 import type { Pt } from './anim';
 import {
@@ -131,11 +132,16 @@ let knightMoveT = -1e9;
 let knightHurtT = -1e9;
 let knightCenter: Pt = { x: KNIGHT_X, y: GROUND_Y - 45 };
 let swordTip: Pt = { x: KNIGHT_X + 40, y: GROUND_Y - 60 };
-let dragonMouth: Pt = { x: ENEMY_X - 90, y: GROUND_Y - 90 };
+/** 몬스터 공격이 시작되는 지점(입/주먹/손) */
+let enemyOrigin: Pt = { x: ENEMY_X - 90, y: GROUND_Y - 90 };
 let enemyLungeT = -1e9;
 let enemyHurtT = -1e9;
 
 const rng = Math.random;
+/** 테스트용: ?stage=N 으로 N번째 몬스터부터 시작 */
+const START_STAGE = Math.max(0, Number(new URLSearchParams(location.search).get('stage')) || 0);
+/** 테스트용: ?monster=wolf|golem|wraith|dragon 으로 일반 몬스터 종류 고정 */
+const FORCE_SPECIES = new URLSearchParams(location.search).get('monster');
 
 function resetGame(): void {
   const now = performance.now();
@@ -143,7 +149,7 @@ function resetGame(): void {
   knight = createKnight();
   spells = createSpells();
   spellFlash = spells.map(() => -1e9);
-  enemyIndex = 0;
+  enemyIndex = START_STAGE;
   kills = 0;
   scroll = 0;
   hpShown = knight.hp;
@@ -159,6 +165,7 @@ function resetGame(): void {
 
 function spawnEnemy(now: number): void {
   enemy = createEnemy(enemyIndex, rng);
+  for (let i = 0; FORCE_SPECIES && enemy.species !== FORCE_SPECIES && i < 200; i++) enemy = createEnemy(enemyIndex, rng);
   enemyHpShown = enemy.hp;
   enemyX = W + 90;
   setPhase('walk', now);
@@ -651,11 +658,12 @@ function knightAct(move: KnightMove, now: number): void {
 }
 
 function enemyScale(): number {
+  if (enemy.species !== 'dragon') return enemy.species === 'golem' ? 0.95 : 1;
   return enemy.boss ? 1.15 : 0.92;
 }
 
 function enemyHover(now: number): number {
-  return enemy.kind === 'spirit' ? -14 + Math.sin(now / 300) * 6 : 0;
+  return enemy.species === 'dragon' && enemy.kind === 'spirit' ? -14 + Math.sin(now / 300) * 6 : 0;
 }
 
 function drawEnemy(now: number): void {
@@ -676,20 +684,30 @@ function drawEnemy(now: number): void {
   ctx.globalAlpha = 1 - fade;
   ctx.translate(x, GROUND_Y + hover);
   ctx.scale(S, S);
-  const mouth = drawDragon(
-    ctx,
-    {
-      kind: enemy.kind,
-      boss: enemy.boss,
-      now,
-      attackAge: phase === 'enemy' ? now - enemyLungeT : null,
-      hurtAge: now - enemyHurtT < 400 ? now - enemyHurtT : null,
-      deathAge: defeatAge,
-    },
+  const anim: MonsterAnim = {
+    now,
+    variant: enemy.variant,
+    attackAge: phase === 'enemy' ? now - enemyLungeT : null,
+    hurtAge: now - enemyHurtT < 400 ? now - enemyHurtT : null,
+    deathAge: defeatAge,
     hurt,
-  );
+  };
+  let origin: Pt;
+  switch (enemy.species) {
+    case 'wolf':
+      origin = drawWolf(ctx, anim);
+      break;
+    case 'golem':
+      origin = drawGolem(ctx, anim);
+      break;
+    case 'wraith':
+      origin = drawWraith(ctx, anim);
+      break;
+    default:
+      origin = drawDragon(ctx, { ...anim, kind: enemy.kind, boss: enemy.boss }, hurt);
+  }
   ctx.restore();
-  dragonMouth = { x: x + mouth.x * S, y: GROUND_Y + hover + mouth.y * S };
+  enemyOrigin = { x: x + origin.x * S, y: GROUND_Y + hover + origin.y * S };
 
   if (phase === 'defeat') return;
 
@@ -809,37 +827,98 @@ function drawFx(now: number): void {
         ctx.lineTo(ex + 60, ey + 40);
         ctx.stroke();
         break;
-      case 'breath': {
-        const [core, edge] = BREATH_COLOR[enemy.kind];
-        if (t < 0) break;
-        const mx = dragonMouth.x;
-        const my = dragonMouth.y;
-        const tx = knightCenter.x;
-        const ty = knightCenter.y;
-        ctx.globalAlpha = 1;
-        for (let i = 0; i < 14; i++) {
-          const k = Math.min(1, t * 1.6 - i * 0.04);
-          if (k <= 0) continue;
-          const px = mx + (tx - mx) * k;
-          const py = my + (ty - my) * k + Math.sin(i * 1.7 + now / 40) * 8 * k;
-          const r = 6 + k * 18;
-          const grd = ctx.createRadialGradient(px, py, 0, px, py, r);
-          grd.addColorStop(0, core);
-          grd.addColorStop(1, edge + '00');
-          ctx.fillStyle = grd;
-          ctx.globalAlpha = (1 - t) * 0.9;
-          ctx.beginPath();
-          ctx.arc(px, py, r, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      case 'breath':
+        if (t >= 0) drawEnemyAttackFx(t, now);
         break;
-      }
       case 'hit':
         ctx.fillStyle = '#ff3a3a55';
         ctx.fillRect(0, SCENE_Y, W, GROUND_Y - SCENE_Y + 30);
         break;
     }
     ctx.restore();
+  }
+}
+
+/** 몬스터 종류별 공격 이펙트 (t: 0~1) */
+function drawEnemyAttackFx(t: number, now: number): void {
+  const o = enemyOrigin;
+  const k = knightCenter;
+  ctx.globalAlpha = Math.max(0, 1 - t);
+  switch (enemy.species) {
+    case 'dragon': {
+      const [core, edge] = BREATH_COLOR[enemy.kind];
+      for (let i = 0; i < 14; i++) {
+        const q = Math.min(1, t * 1.6 - i * 0.04);
+        if (q <= 0) continue;
+        const px = o.x + (k.x - o.x) * q;
+        const py = o.y + (k.y - o.y) * q + Math.sin(i * 1.7 + now / 40) * 8 * q;
+        const r = 6 + q * 18;
+        const grd = ctx.createRadialGradient(px, py, 0, px, py, r);
+        grd.addColorStop(0, core);
+        grd.addColorStop(1, edge + '00');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'wolf': {
+      // 발톱 자국 3줄
+      if (t < 0.25) break;
+      const q = Math.min(1, (t - 0.25) * 4);
+      ctx.strokeStyle = '#ff5a5a';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (let i = -1; i <= 1; i++) {
+        const sx = k.x + 18 + i * 9;
+        const sy = k.y - 26;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - 26 * q, sy + 44 * q);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'golem': {
+      // 땅을 타고 오는 충격파 + 솟는 바위
+      const front = o.x + (k.x - o.x) * Math.min(1, t * 1.6);
+      ctx.fillStyle = '#8d8577';
+      for (let x = o.x; x > front; x -= 16) {
+        const age = (o.x - x) / Math.max(1, o.x - k.x);
+        const h = 16 * Math.sin(Math.min(1, (t * 1.6 - age) * 3) * Math.PI);
+        if (h <= 0) continue;
+        ctx.beginPath();
+        ctx.moveTo(x - 7, GROUND_Y);
+        ctx.lineTo(x - 2, GROUND_Y - h);
+        ctx.lineTo(x + 6, GROUND_Y);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#e8dcc0';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(front, GROUND_Y - 2, 18, 7, 0, Math.PI, 0);
+      ctx.stroke();
+      break;
+    }
+    case 'wraith': {
+      // 날아가는 영혼 발톱
+      const glow = enemy.variant ? '#6bffd8' : '#b48cff';
+      ctx.strokeStyle = glow;
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      const q = Math.min(1, t * 1.8);
+      const cx = o.x + (k.x - o.x) * q;
+      const cy = o.y + (k.y - o.y) * q;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.arc(cx + 20, cy + i * 10, 22, Math.PI * 0.75, Math.PI * 1.25);
+        ctx.stroke();
+      }
+      break;
+    }
   }
 }
 

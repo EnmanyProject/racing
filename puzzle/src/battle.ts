@@ -1,6 +1,7 @@
 // 전투 규칙: 퍼즐 콤보 → 기사 지원 효과 변환, 지원 마법, 몬스터 생성
 
 import { COLS, Orb, ROWS, type Combo, type Grid, type Rng } from './board';
+import type { Species } from './monsters';
 
 export interface Knight {
   maxHp: number;
@@ -36,6 +37,10 @@ export const RESIST: Record<EnemyKind, { phys: number; magic: number; label: str
 export interface Enemy {
   name: string;
   kind: EnemyKind;
+  /** 외형/모션 종류 */
+  species: Species;
+  /** 같은 종 내 색상 변형 */
+  variant: number;
   maxHp: number;
   hp: number;
   atk: number;
@@ -182,30 +187,48 @@ export function createSpells(): Spell[] {
   ];
 }
 
-const MONSTERS: [string, EnemyKind][] = [
-  ['붉은 와이번', 'beast'],
-  ['화염 드레이크', 'beast'],
-  ['강철비늘 드레이크', 'armored'],
-  ['바위등 용', 'armored'],
-  ['유령 비룡', 'spirit'],
-  ['별빛 영룡', 'spirit'],
+type MonsterDef = [name: string, kind: EnemyKind, species: Species, variant: number];
+
+const DRAGONS: MonsterDef[] = [
+  ['붉은 와이번', 'beast', 'dragon', 0],
+  ['화염 드레이크', 'beast', 'dragon', 0],
+  ['강철비늘 드레이크', 'armored', 'dragon', 0],
+  ['바위등 용', 'armored', 'dragon', 0],
+  ['유령 비룡', 'spirit', 'dragon', 0],
+  ['별빛 영룡', 'spirit', 'dragon', 0],
 ];
-const BOSSES: [string, EnemyKind][] = [
-  ['고룡 바하르', 'beast'],
-  ['흑철 고룡', 'armored'],
-  ['심연의 망령룡', 'spirit'],
+/** 용 사이사이에 만나는 몬스터 */
+const OTHERS: MonsterDef[] = [
+  ['굶주린 다이어울프', 'beast', 'wolf', 0],
+  ['피송곳니 늑대', 'beast', 'wolf', 1],
+  ['바위 골렘', 'armored', 'golem', 0],
+  ['강철 골렘', 'armored', 'golem', 1],
+  ['울부짖는 망령', 'spirit', 'wraith', 0],
+  ['심연의 유령', 'spirit', 'wraith', 1],
+];
+const BOSSES: MonsterDef[] = [
+  ['고룡 바하르', 'beast', 'dragon', 0],
+  ['흑철 고룡', 'armored', 'dragon', 0],
+  ['심연의 망령룡', 'spirit', 'dragon', 0],
 ];
 
 /** 5번째마다 보스. 만날수록 강해진다. */
 export const BOSS_EVERY = 5;
 
+/** 한 사이클(5마리) 안에서 용이 아닌 몬스터가 나오는 순서: 용 → 기타 → 용 → 기타 → 보스 */
+export function isOtherSlot(index: number): boolean {
+  const k = index % BOSS_EVERY;
+  return k === 1 || k === 3;
+}
+
 export function createEnemy(index: number, rng: Rng): Enemy {
   const boss = index % BOSS_EVERY === BOSS_EVERY - 1;
-  const [name, kind] = boss
-    ? BOSSES[Math.floor(index / BOSS_EVERY) % BOSSES.length]
-    : MONSTERS[Math.floor(rng() * MONSTERS.length)];
+  const pool = boss ? null : isOtherSlot(index) ? OTHERS : DRAGONS;
+  const [name, kind, species, variant] = pool
+    ? pool[Math.floor(rng() * pool.length)]
+    : BOSSES[Math.floor(index / BOSS_EVERY) % BOSSES.length];
   const hp = Math.round(1800 * Math.pow(1.22, index) * (boss ? 2.2 : 1));
   const atk = Math.round(260 * Math.pow(1.13, index) * (boss ? 1.3 : 1));
   const turns = boss ? 2 : 2 + Math.floor(rng() * 2);
-  return { name, kind, maxHp: hp, hp, atk, maxTurns: turns, turns, attacks: 0, boss };
+  return { name, kind, species, variant, maxHp: hp, hp, atk, maxTurns: turns, turns, attacks: 0, boss };
 }
